@@ -127,18 +127,22 @@ class TextLine(urwid.Edit):
         self.display = display
         self.tab = tabsize
         self.tokens = []
+        self.attribs = []
+        self.iterations = 0
         self.parsed = False
         self.original = self.t
 
     def get_text(self):
         etext = self.get_edit_text()
-        if not self.parsed or self.display.listbox.focus == self or self.edit_text != self.original:
+        if not self.parsed or (self.display.listbox.focus == self and self.edit_text != self.original):
+            self.iterations += 1
+            self.display.listbox.short_name = str(self.iterations)
             self.parsed = True
             self.tokens = self.display.listbox.get_tokens(self.edit_text)
-            attrib = [(tok, len(s)) for tok, s in self.tokens]
-        else:
-            attrib = [(tok, len(s)) for tok, s in self.tokens]
-        return etext, attrib
+            self.attribs = [(tok, len(s)) for tok, s in self.tokens]
+            self.original = self.edit_text
+
+        return etext, self.attribs
 
     def remove_tab(self, position):
         text = self.edit_text
@@ -152,7 +156,6 @@ class TextLine(urwid.Edit):
 
     def keypress(self, size, key):
         ret = super().keypress(size, key)
-        self.original = self.edit_text
         self.display.update_status()
         if key == "left" or key == "right":
             self.display.update_status()
@@ -198,7 +201,7 @@ class TextList(urwid.ListBox):
         if len(files) > 1:
             index = files.index(fname)
             if index < len(files)-1: # if not last in list
-                new_name = files[index+1] 
+                new_name = files[index+1]
             else: # if last file in list
                 new_name = files[index-1]
             # delete file and contents from master lists
@@ -209,7 +212,7 @@ class TextList(urwid.ListBox):
             foot_col = urwid.Columns(self.display.tabs)
             foot = urwid.AttrMap(foot_col, 'footer')
             self.display.top.contents['footer'] = (foot, None)
-            self.switch_tabs(None, new_name)
+            self.switch_tabs(new_name)
 
     def get_lexer(self):
         try:
@@ -218,7 +221,7 @@ class TextList(urwid.ListBox):
             lexer = TextLexer()
 
         lexer = Python3Lexer() if isinstance(lexer, PythonLexer) else lexer
-        lexer.add_filter(NonEmptyFilter())
+        #lexer.add_filter(NonEmptyFilter())
         lexer.add_filter('tokenmerge')
 
         return lexer
@@ -303,7 +306,7 @@ class TextList(urwid.ListBox):
         elif key == "ctrl right" or key == "meta right":
             line = self.focus
             xpos = line.edit_pos
-            re_word = RE_WORD if key == "meta right" else RE_NOT_WORD
+            re_word = RE_WORD if key == "ctrl right" else RE_NOT_WORD
             m = re_word.search(line.edit_text or "", xpos)
             word_pos = len(line.edit_text) if m is None else m.end()
             line.set_edit_pos(word_pos)
@@ -316,7 +319,7 @@ class TextList(urwid.ListBox):
             word_pos = 0 if len(starts) == 0 else starts[-1]
             line.set_edit_pos(word_pos)
 
-        elif key == "ctrl tab" or key == 'meta tab':
+        elif key == 'meta tab':
             index = self.display.file_names.index(self.fname)
             if index+1 < len(self.display.file_names):
                 next_index = index+1
@@ -344,7 +347,7 @@ class MainGUI(object):
         self.style = get_style_by_name('monokai')
         self.palette = [('header', 'white', 'dark gray', 'bold'),
                         ('browse', 'black', 'light gray'),
-                        ('body', 'default', 'default'),
+                        ('body', 'default', 'black'),
                         ('footer', 'white', 'dark gray', 'bold'),
                         ('key', 'white', 'dark blue', 'default'),
                         ('selected', 'white', 'dark blue', 'bold'),
@@ -353,7 +356,7 @@ class MainGUI(object):
                         ('flagged focus', 'yellow', 'dark cyan',
                                 ('bold','standout','underline'))]
 
-        self.stext = ('header', ['TE   ', 
+        self.stext = ('header', ['TE   ',
                                     ('key', 'Ctrl+o'), ' Open ',
                                     ('key', 'Ctrl+n'), ' New ',
                                     ('key', 'Ctrl+s'), ' Save ',
@@ -392,11 +395,11 @@ class MainGUI(object):
 
         self.top = urwid.Frame(self.listbox, header=self.status, footer=self.foot_col)
         self.state = 'editor'
-        self.listbox.populate('scum.py')
         self.listbox.populate('resources/start_up.txt')
+        self.listbox.populate('scum.py')
 
     def display(self):
-        self.loop = urwid.MainLoop(self.top, 
+        self.loop = urwid.MainLoop(self.top,
             self.palette, handle_mouse = False,
             unhandled_input = self.keypress)
         self.loop.screen.set_terminal_properties(256)
@@ -404,14 +407,14 @@ class MainGUI(object):
         self.update_status()
         self.loop.run()
 
-    def update_status(self): 
+    def update_status(self):
         col, row = self.loop.screen.get_cols_rows()
 
         if self.state == 'editor':
             status_bar = self.stext[1]
             coords = self.listbox.get_cursor_coords((200, len(self.listbox.lines)))
             info = '{0}   line:{1[1]} col:{1[0]}'.format(str(self.listbox.short_name), coords)
-            status_bar[-1] = '{0:>{1}}'.format(info, col-len(self.tbar_text)) 
+            status_bar[-1] = '{0:>{1}}'.format(info, col-len(self.tbar_text))
             self.tbar.set_text(status_bar)
 
         elif self.state == 'openfile':
@@ -426,6 +429,7 @@ class MainGUI(object):
             self.top.contents['header'] = (self.status, None)
             self.top.contents['body'] = (self.listbox, None)
             self.top.contents['footer'] = (self.foot_col, None)
+
         elif state == 'openfile':
             self.top.contents['header'] = (self.oftbar, None)
             self.top.contents['body'] = (self.browser, None)
@@ -443,7 +447,7 @@ class MainGUI(object):
             self.loop.process_input(['down'])
             self.listbox.focus.set_edit_pos(0)
         elif k == 'backspace':
-            # Right here we run combine_previous() to combine the 
+            # Right here we run combine_previous() to combine the
             # current text line with the one prior. This function
             # returns the length of the previous line. We have to wait to set the edit_pos
             # because self.loop.process_input changes the edit_pos
