@@ -96,12 +96,14 @@ CONFIG = {
         'open':'ctrl o',
         'save':'ctrl f',
         'nexttab':'alt tab',
-        'closetab':'ctrl w'
+        'closetab':'ctrl w',
+        'exit':'ctrl x'
     }
 
 CONFIG['rgb_to_short'] = {v: k for k, v in CONFIG['short_to_rgb'].items()}
 
 palette_items = ['header', 'flagged focus', 'key', 'footer', 'focus', 'selected', 'flagged', 'browse']
+text_options = ['bold', 'underline', 'standout']
 
 def read_config():
     new_config = CONFIG
@@ -113,7 +115,14 @@ def read_config():
             split = line.split(':')
             item = split[0]
             if item in palette_items:
-                new_config[item] = [item] + split[1].split(",")
+                attribs = split[1].split(",")
+                try:
+                    a = urwid.AttrSpec(attribs[0], attribs[1], colors=256)
+                    if attribs[2] not in text_options:
+                        attribs[2] = ''
+                    new_config[item] = [item]+[a.foreground, a.background, attribs[2]]
+                except urwid.display_common.AttrSpecError:
+                    print("attribute not supported")
             else:
                 if item in new_config:
                     new_config[item] = split[1]
@@ -163,15 +172,12 @@ class TextLine(urwid.Edit):
         self.tab = tabsize
         self.tokens = []
         self.attribs = []
-        self.iterations = 0
         self.parsed = False
         self.original = self.t
 
     def get_text(self):
         etext = self.get_edit_text()
         if not self.parsed or (self.display.listbox.focus == self and self.edit_text != self.original):
-            self.iterations += 1
-            self.display.listbox.short_name = str(self.iterations)
             self.parsed = True
             self.tokens = self.display.listbox.get_tokens(self.edit_text)
             self.attribs = [(tok, len(s)) for tok, s in self.tokens]
@@ -273,7 +279,7 @@ class TextList(urwid.ListBox):
             tabs = self.display.tabs
             for i in range(0, len(tabs)):
                 if i != index:
-                    tabs[i].set_attr_map({None:'header'})
+                    tabs[i].set_attr_map({None:'footer'})
                 else:
                     tabs[i].set_attr_map({None:'selected'})
 
@@ -507,14 +513,13 @@ class MainGUI(object):
             self.configure()
             self.loop.screen.register_palette(self.palette)
             self.loop.screen.clear()
-            for fname in self.file_names:
-                self.listbox.populate(fname)
 
         elif k == self.config['open']:
             self.new_files = []
             self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(self.cwd, self)))
             self.browser.offset_rows = 1
             self.switch_states('openfile')
+
         elif k == 'enter':
             if self.state == 'openfile':
                 self.switch_states('editor')
@@ -522,9 +527,10 @@ class MainGUI(object):
                     for fname in self.new_files:
                         self.listbox.populate(fname)
                 else:
-                    self.foot_col = urwid.Columns(self.tabs)
-                    foot = urwid.AttrMap(self.foot_col, 'footer')
-                    self.top.contents['footer'] = (foot, None)
+                    self.listbox.populate(self.file_names[0])
+
+        elif k == 'ctrl x':
+            raise urwid.ExitMainLoop()
 
     def register_palette(self):
         """Converts pygmets style to urwid palatte"""

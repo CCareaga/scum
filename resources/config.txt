@@ -1,24 +1,34 @@
 ##################################################################
 #
 # This is the scum configuration file
-# key bindings. colors and syntax-highlighting themes can be defined here
+# key bindings, colors and syntax-highlighting themes can be defined here
+# when you are done editing save the file and then press ctrl+t to
+# update the changes!
 #
+#
+# GUI widget options:
+#   header - the attributes of the top bar
+#   footer - the attributes of the bottom bar
+#   focus - the attributes of the current focused item in openfile window
+#   key - the attrbutes of the highlighted parts of the top bar
+#   selected - attributes of the currently opened tab indicator
 ##################################################################
 
-# Keybindings
+# Key-bindings
 open:ctrl o
 save:ctrl f
 nexttab:meta tab
 closetab:ctrl w
+exit:ctrl x
 
 # syntax style
 style:monokai
 
 # gui colors
 # format:widget,foreground,background,extra
+
 header:white,dark gray,bold
 footer:white,dark gray,bold
 focus:light gray,dark red,bold
-key:white,dark red,bold
-selected:white,dark red,bold
-
+key:white,dark blue,bold
+selected:white,dark blue,bold

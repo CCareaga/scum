@@ -9,6 +9,8 @@ Scum is a terminal-based, multi-tab text editor written in Python.
   - Syntax-highlighting
   - Multiple Tabs
   - Open and save files (complete with text-based file-browser)
+  - Fully customizable
+  - On-the-go configuration changing
 
 ### Dependencies
 ------------
@@ -16,12 +18,11 @@ Scum is a terminal-based, multi-tab text editor written in Python.
  - Urwid
  - Pygments
 
-#### To-Do
+### To-Do
 ------------
 - Find and replace.
-- Configurable key-bindings.
 - Creating a new file.
-- Configurable colors.
+- Tab saving.
 
 ### Key Bindings
 ------------
@@ -31,4 +32,6 @@ Scum is a terminal-based, multi-tab text editor written in Python.
 | Ctrl+F  | Save file (temporary) |
 | Ctrl+W  | Close current tab     |
 | Alt+Tab | Move to the next tab  |
-
+| Ctrl+E  | Edit the config file  |
+| Ctrl+T  | Run config file       |
+| Ctrl+X  | Exit                  |
