@@ -1,7 +1,7 @@
 import urwid
 import os
 import re
-from browse import *
+from modules import DirectoryNode
 
 import pygments.util
 from pygments.lexers import guess_lexer, get_lexer_for_filename, get_lexer_by_name
@@ -80,10 +80,45 @@ CONFIG = {
         '244': '808080', '245': '8a8a8a', '246': '949494', '247': '9e9e9e',
         '248': 'a8a8a8', '249': 'b2b2b2', '250': 'bcbcbc', '251': 'c6c6c6',
         '252': 'd0d0d0', '253': 'dadada', '254': 'e4e4e4', '255': 'eeeeee',
-        }
+        },
+
+        'header':['header', 'white', 'dark gray', 'bold'],
+        'browse':['browse', 'black', 'light gray'],
+        'footer':['footer', 'white', 'dark gray', 'bold'],
+        'key':['key', 'white', 'dark blue', 'default'],
+        'selected':['selected', 'white', 'dark blue', 'bold'],
+        'flagged':['flagged', 'black', 'dark green', 'bold'],
+        'focus':['focus', 'light gray', 'dark blue', 'standout'],
+        'flagged focus':['flagged focus', 'yellow', 'dark cyan', ('bold','standout','underline')],
+
+        'style':'monokai',
+
+        'open':'ctrl o',
+        'save':'ctrl f',
+        'nexttab':'alt tab',
+        'closetab':'ctrl w'
     }
 
 CONFIG['rgb_to_short'] = {v: k for k, v in CONFIG['short_to_rgb'].items()}
+
+palette_items = ['header', 'flagged focus', 'key', 'footer', 'focus', 'selected', 'flagged', 'browse']
+
+def read_config():
+    new_config = CONFIG
+    with open('resources/config.txt', 'r') as f:
+        lines = [x.strip('\n') for x in f.readlines() if x.strip()]
+
+    for line in lines:
+        if line.lstrip()[0] != '#':
+            split = line.split(':')
+            item = split[0]
+            if item in palette_items:
+                new_config[item] = [item] + split[1].split(",")
+            else:
+                if item in new_config:
+                    new_config[item] = split[1]
+
+    return new_config
 
 def strip_fname(fname):
     peices = fname.split("/")
@@ -171,6 +206,7 @@ class TextList(urwid.ListBox):
         self.fname = ' '
         self.short_name = ' '
         self.lexer = None
+        self.config = self.display.config
 
     def populate(self, fname):
         if fname not in self.display.file_names:
@@ -184,16 +220,21 @@ class TextList(urwid.ListBox):
                 text = TextLine(line, self.display)
                 new_lines.append(text)
 
+            if len(new_lines) < 1:
+                text = TextLine(' ', self.display)
+                new_lines.append(text)
+
             self.display.file_dict[fname] = new_lines
             button = urwid.Button(self.short_name)
             button._label.align = 'center'
             attrib = urwid.AttrMap(button, 'footer')
             self.display.tabs.append(attrib)
 
-            foot_col = urwid.Columns(self.display.tabs)
-            foot = urwid.AttrMap(foot_col, 'footer')
-            self.display.top.contents['footer'] = (foot, None)
             self.switch_tabs(fname)
+
+        foot_col = urwid.Columns(self.display.tabs)
+        foot = urwid.AttrMap(foot_col, 'footer')
+        self.display.top.contents['footer'] = (foot, None)
 
     def delete_tab(self, fname):
         files = self.display.file_names
@@ -319,7 +360,7 @@ class TextList(urwid.ListBox):
             word_pos = 0 if len(starts) == 0 else starts[-1]
             line.set_edit_pos(word_pos)
 
-        elif key == 'meta tab':
+        elif key == self.config['nexttab']:
             index = self.display.file_names.index(self.fname)
             if index+1 < len(self.display.file_names):
                 next_index = index+1
@@ -328,10 +369,10 @@ class TextList(urwid.ListBox):
 
             self.switch_tabs(self.display.file_names[next_index])
 
-        elif key == 'ctrl w' or key == 'meta w':
+        elif key == self.config['closetab']:
             self.delete_tab(self.fname)
 
-        elif key == 'ctrl f' or key == 'meta s':
+        elif key == self.config['save']:
             self.save_file()
         return ret
 
@@ -341,20 +382,12 @@ class MainGUI(object):
         self.cwd = os.getcwd()
         self.file_dict = {}
         self.file_names = []
+        self.palette = []
+        self.tabs = []
 
         self.state = ''
 
-        self.style = get_style_by_name('monokai')
-        self.palette = [('header', 'white', 'dark gray', 'bold'),
-                        ('browse', 'black', 'light gray'),
-                        ('body', 'default', 'black'),
-                        ('footer', 'white', 'dark gray', 'bold'),
-                        ('key', 'white', 'dark blue', 'default'),
-                        ('selected', 'white', 'dark blue', 'bold'),
-                        ('flagged', 'black', 'dark green', ('bold','underline')),
-                        ('focus', 'light gray', 'dark blue', 'standout'),
-                        ('flagged focus', 'yellow', 'dark cyan',
-                                ('bold','standout','underline'))]
+        self.configure()
 
         self.stext = ('header', ['TE   ',
                                     ('key', 'Ctrl+o'), ' Open ',
@@ -369,7 +402,6 @@ class MainGUI(object):
 
         # editor state GUI
         self.bbar = urwid.Text('')
-        self.tabs = []
 
         self.tbar = urwid.Text(self.stext)
         self.tbar_text = self.tbar.text
@@ -379,7 +411,7 @@ class MainGUI(object):
         urwid.AttrMap(self.listbox, 'body')
 
         self.foot_col = urwid.Columns(self.tabs)
-        urwid.AttrMap(self.foot_col, 'footer')
+        self.foot = urwid.AttrMap(self.foot_col, 'footer')
 
         # openfile state GUI
         self.new_files = []
@@ -395,6 +427,7 @@ class MainGUI(object):
 
         self.top = urwid.Frame(self.listbox, header=self.status, footer=self.foot_col)
         self.state = 'editor'
+
         self.listbox.populate('resources/start_up.txt')
         self.listbox.populate('scum.py')
 
@@ -407,13 +440,24 @@ class MainGUI(object):
         self.update_status()
         self.loop.run()
 
+    def configure(self):
+        self.config = read_config()
+
+        self.style = get_style_by_name(self.config['style'])
+
+        for item in palette_items:
+            self.palette.append(tuple(self.config[item]))
+
     def update_status(self):
         col, row = self.loop.screen.get_cols_rows()
 
         if self.state == 'editor':
             status_bar = self.stext[1]
             coords = self.listbox.get_cursor_coords((200, len(self.listbox.lines)))
-            info = '{0}   line:{1[1]} col:{1[0]}'.format(str(self.listbox.short_name), coords)
+            position = [0, 0]
+            if coords:
+                position = coords
+            info = '{0}   line:{1[1]} col:{1[0]}'.format(str(self.listbox.short_name), position)
             status_bar[-1] = '{0:>{1}}'.format(info, col-len(self.tbar_text))
             self.tbar.set_text(status_bar)
 
@@ -455,7 +499,18 @@ class MainGUI(object):
             self.update_status()
             self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(length)
-        elif k == 'ctrl o':
+
+        elif k == 'ctrl e':
+            self.listbox.populate('resources/config.txt')
+
+        elif k == 'ctrl t':
+            self.configure()
+            self.loop.screen.register_palette(self.palette)
+            self.loop.screen.clear()
+            for fname in self.file_names:
+                self.listbox.populate(fname)
+
+        elif k == self.config['open']:
             self.new_files = []
             self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(self.cwd, self)))
             self.browser.offset_rows = 1
@@ -463,8 +518,13 @@ class MainGUI(object):
         elif k == 'enter':
             if self.state == 'openfile':
                 self.switch_states('editor')
-                for fname in self.new_files:
-                    self.listbox.populate(fname)
+                if len(self.new_files) > 0:
+                    for fname in self.new_files:
+                        self.listbox.populate(fname)
+                else:
+                    self.foot_col = urwid.Columns(self.tabs)
+                    foot = urwid.AttrMap(self.foot_col, 'footer')
+                    self.top.contents['footer'] = (foot, None)
 
     def register_palette(self):
         """Converts pygmets style to urwid palatte"""

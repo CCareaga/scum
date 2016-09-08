@@ -1,0 +1,24 @@
+##################################################################
+#
+# This is the scum configuration file
+# key bindings. colors and syntax-highlighting themes can be defined here
+#
+##################################################################
+
+# Keybindings
+open:ctrl o
+save:ctrl f
+nexttab:meta tab
+closetab:ctrl w
+
+# syntax style
+style:monokai
+
+# gui colors
+# format:widget,foreground,background,extra
+header:white,dark gray,bold
+footer:white,dark gray,bold
+focus:light gray,dark red,bold
+key:white,dark red,bold
+selected:white,dark red,bold
+
