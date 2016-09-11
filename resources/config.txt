@@ -16,7 +16,7 @@
 
 # Key-bindings
 open:ctrl o
-save:ctrl f
+save:ctrl d
 nexttab:meta tab
 closetab:ctrl w
 exit:ctrl x

@@ -4,12 +4,12 @@ import re
 from modules import DirectoryNode
 
 import pygments.util
-from pygments.lexers import guess_lexer, get_lexer_for_filename, get_lexer_by_name
+from pygments.lexers import guess_lexer_for_filename, get_lexer_for_filename
 from pygments.lexers.special import TextLexer
 from pygments.lexers.python import PythonLexer, Python3Lexer
 from pygments.token import Token
 from pygments.filter import Filter
-from pygments.styles import get_all_styles, get_style_by_name
+from pygments.styles import get_style_by_name
 
 RE_WORD = re.compile(r'\w+')
 RE_NOT_WORD = re.compile(r'\W+')
@@ -94,7 +94,7 @@ CONFIG = {
         'style':'monokai',
 
         'open':'ctrl o',
-        'save':'ctrl f',
+        'save':'ctrl d',
         'nexttab':'alt tab',
         'closetab':'ctrl w',
         'exit':'ctrl x'
@@ -287,6 +287,7 @@ class TextList(urwid.ListBox):
             self.short_name = strip_fname(fname)
             self.lines[:] = self.display.file_dict[fname]
             self.display.top.set_focus('body')
+            #if self.lexer is None:
             self.lexer = self.get_lexer()
         else:
             self.display.top.set_focus('body')
@@ -377,6 +378,7 @@ class TextList(urwid.ListBox):
 
         elif key == self.config['closetab']:
             self.delete_tab(self.fname)
+            self.display.save_tabs()
 
         elif key == self.config['save']:
             self.save_file()
@@ -395,11 +397,7 @@ class MainGUI(object):
 
         self.configure()
 
-        self.stext = ('header', ['TE   ',
-                                    ('key', 'Ctrl+o'), ' Open ',
-                                    ('key', 'Ctrl+n'), ' New ',
-                                    ('key', 'Ctrl+s'), ' Save ',
-                                    ('key', 'Ctrl+x'),  ' Exit ',
+        self.stext = ('header', ['SCUM   ',
                                     ('key', 'ESC'), ' Help ', ''])
 
         self.openfile_stext = ('header', ['Open File: Arrows to navigate ',
@@ -434,8 +432,9 @@ class MainGUI(object):
         self.top = urwid.Frame(self.listbox, header=self.status, footer=self.foot_col)
         self.state = 'editor'
 
-        self.listbox.populate('resources/start_up.txt')
-        self.listbox.populate('scum.py')
+        self.open_tabs()
+        #self.listbox.populate('resources/start_up.txt')
+        #self.listbox.populate('scum.py')
 
     def display(self):
         self.loop = urwid.MainLoop(self.top,
@@ -484,18 +483,34 @@ class MainGUI(object):
             self.top.contents['header'] = (self.oftbar, None)
             self.top.contents['body'] = (self.browser, None)
             self.top.contents['footer'] = (self.ofbbar, None)
+            self.ofbbar.set_text('')
 
         self.state = state
+
+    def open_tabs(self):
+        with open('resources/tabs.dat') as f:
+            lines = [line.strip('\n') for line in f.readlines()]
+
+        for line in lines:
+            self.listbox.populate(line)
+
+    def save_tabs(self):
+        with open('resources/tabs.dat', 'w') as f:
+            for tab in self.file_names:
+                f.write(tab + '\n')
 
     def keypress(self, k):
         foc = self.top.focus_position
         self.update_status()
+
         if k == 'left':
             self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(len(self.listbox.focus.edit_text))
+
         elif k == 'right':
             self.loop.process_input(['down'])
             self.listbox.focus.set_edit_pos(0)
+
         elif k == 'backspace':
             # Right here we run combine_previous() to combine the
             # current text line with the one prior. This function
@@ -503,7 +518,7 @@ class MainGUI(object):
             # because self.loop.process_input changes the edit_pos
             length = self.listbox.combine_previous()
             self.update_status()
-            self.loop.process_input(['up'])
+            #self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(length)
 
         elif k == 'ctrl e':
@@ -528,9 +543,14 @@ class MainGUI(object):
                         self.listbox.populate(fname)
                 else:
                     self.listbox.populate(self.file_names[0])
+                self.new_files = []
+                self.save_tabs()
 
         elif k == 'ctrl x':
             raise urwid.ExitMainLoop()
+
+        elif k == 'esc':
+            self.listbox.populate('resources/help.txt')
 
     def register_palette(self):
         """Converts pygmets style to urwid palatte"""
