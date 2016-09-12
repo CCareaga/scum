@@ -5,7 +5,6 @@ scum.py
 setup.py
 modules/__init__.py
 modules/browse.py
-resources/__init__.py
 resources/config.txt
 resources/help.txt
 resources/start_up.txt
