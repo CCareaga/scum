@@ -518,7 +518,7 @@ class MainGUI(object):
             # because self.loop.process_input changes the edit_pos
             length = self.listbox.combine_previous()
             self.update_status()
-            #self.loop.process_input(['up'])
+            self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(length)
 
         elif k == 'ctrl e':
