@@ -102,34 +102,36 @@ CONFIG = {
 
 CONFIG['rgb_to_short'] = {v: k for k, v in CONFIG['short_to_rgb'].items()}
 
+# all the possible widgets that can be defined in the config
 palette_items = ['header', 'flagged focus', 'key', 'footer', 'focus', 'selected', 'flagged', 'browse']
 text_options = ['bold', 'underline', 'standout']
 
 def read_config():
-    new_config = CONFIG
+    new_config = CONFIG # make a copy of the default config
     with open('resources/config.txt', 'r') as f:
-        lines = [x.strip('\n') for x in f.readlines() if x.strip()]
+        lines = [x.strip('\n') for x in f.readlines() if x.strip()] # strip any unempty lines
 
     for line in lines:
-        if line.lstrip()[0] != '#':
-            split = line.split(':')
+        if line.lstrip()[0] != '#': # skip lines with '#' at beginning
+            split = line.split(':') # break the line into two parts item and attributes
             item = split[0]
-            if item in palette_items:
+            if item in palette_items: # if this line is a palette line
                 attribs = split[1].split(",")
-                try:
+                try: # try creating an urwid attr spec
                     a = urwid.AttrSpec(attribs[0], attribs[1], colors=256)
                     if attribs[2] not in text_options:
                         attribs[2] = ''
-                    new_config[item] = [item]+[a.foreground, a.background, attribs[2]]
+                    new_config[item] = [item]+[a.foreground, a.background, attribs[2]] # add this to the new config
                 except urwid.display_common.AttrSpecError:
                     print("attribute not supported")
-            else:
-                if item in new_config:
-                    new_config[item] = split[1]
+            else: # this line isn't a palette lime
+                if item in new_config: # if this item exists in config dict
+                    new_config[item] = split[1] # redefine it in the dict
 
     return new_config
 
 def strip_fname(fname):
+    # This function gets only the name of the file, without the path
     peices = fname.split("/")
     return peices[-1]
 
@@ -157,13 +159,6 @@ def rgb_to_short(rgb, mapping):
     equiv = mapping[res]
     return equiv, res
 
-class NonEmptyFilter(Filter):
-    """Ensures that tokens have len > 0."""
-    def filter(self, lexer, stream):
-        for ttype, value in stream:
-            if len(value) > 0:
-                yield ttype, value
-
 class TextLine(urwid.Edit):
     def __init__(self, text, display, tabsize=4, **kwargs):
         super().__init__(edit_text=text.expandtabs(4), **kwargs)
@@ -177,25 +172,18 @@ class TextLine(urwid.Edit):
 
     def get_text(self):
         etext = self.get_edit_text()
+        # this is done to ensure that parsing is only done if the line is selected and altered
         if not self.parsed or (self.display.listbox.focus == self and self.edit_text != self.original):
             self.parsed = True
+            # get the new tokens and return them
             self.tokens = self.display.listbox.get_tokens(self.edit_text)
             self.attribs = [(tok, len(s)) for tok, s in self.tokens]
             self.original = self.edit_text
 
         return etext, self.attribs
 
-    def remove_tab(self, position):
-        text = self.edit_text
-        return text[:position-self.tab+1] + text[position:]
-
-    def back_tab(self):
-        if self.edit_pos in self.tab_ends:
-            self.tab_ends.remove(self.edit_pos)
-            self.edit_text = self.remove_tab(self.edit_pos)
-            self.set_edit_pos(self.edit_pos-self.tab+1)
-
     def keypress(self, size, key):
+        # this function updates the status bar and implements tab behaviour
         ret = super().keypress(size, key)
         self.display.update_status()
         if key == "left" or key == "right":
@@ -215,29 +203,35 @@ class TextList(urwid.ListBox):
         self.config = self.display.config
 
     def populate(self, fname):
+        # this function populates the TextList and creates a new tabs
+        # The same Textlist is used for each tab but when tabs are switched the
+        # contents of the tab are grabbed from a dictionary in the main class
         if fname not in self.display.file_names:
+            # the short name is the file name without a path
             self.short_name = strip_fname(fname)
             self.display.file_names.append(fname)
             new_lines = []
+            # grab the lines from the file and strip the newline char
+            # Then iterate through and create a new TextLine object for each line
             with open(fname) as f:
                 content = [x.strip('\n') for x in f.readlines()]
 
             for line in content:
                 text = TextLine(line, self.display)
                 new_lines.append(text)
-
+            # if the file is empty then add one empty line so it can be displayed
             if len(new_lines) < 1:
                 text = TextLine(' ', self.display)
                 new_lines.append(text)
-
+            # create a new tab (button widget) with the correct attributes
             self.display.file_dict[fname] = new_lines
             button = urwid.Button(self.short_name)
             button._label.align = 'center'
             attrib = urwid.AttrMap(button, 'footer')
             self.display.tabs.append(attrib)
-
+            # switch to the new tab
             self.switch_tabs(fname)
-
+        # this is done to ensure that the bottom bar is re-drawn after opening files
         foot_col = urwid.Columns(self.display.tabs)
         foot = urwid.AttrMap(foot_col, 'footer')
         self.display.top.contents['footer'] = (foot, None)
@@ -262,6 +256,7 @@ class TextList(urwid.ListBox):
             self.switch_tabs(new_name)
 
     def get_lexer(self):
+        # this function gets the lexer depending on the files name
         try:
             lexer = get_lexer_for_filename(self.short_name)
         except pygments.util.ClassNotFound:
@@ -274,29 +269,36 @@ class TextList(urwid.ListBox):
         return lexer
 
     def switch_tabs(self, fname):
-        if self.fname != fname:
+        # this method switches to a tab according to the provided filename
+        if self.fname != fname: # make sure we aren't already on this tab
             index = self.display.file_names.index(fname)
             tabs = self.display.tabs
+            # change tab colors depending on current index
             for i in range(0, len(tabs)):
                 if i != index:
                     tabs[i].set_attr_map({None:'footer'})
                 else:
                     tabs[i].set_attr_map({None:'selected'})
-
+            # re-assign the current path and filename
             self.fname = fname
             self.short_name = strip_fname(fname)
+            # repopulate the lines list from the line dict in the main class
             self.lines[:] = self.display.file_dict[fname]
             self.display.top.set_focus('body')
-            #if self.lexer is None:
+
             self.lexer = self.get_lexer()
         else:
+            # not really needed since no mouse support :/
             self.display.top.set_focus('body')
             return
 
     def get_tokens(self, text):
+        # this function returns the tokens for the provided text
         return list(self.lexer.get_tokens(text))
 
     def get_line(self, position):
+        # gets the TextLine object at the given position
+        # I don't think I use this anywhere
         if position < 0:
             return None
 
@@ -304,12 +306,15 @@ class TextList(urwid.ListBox):
             return self.lines[position]
 
     def next(self, index):
+        # get the line after the current position
         return self.get_line(index+1)
 
     def previous(self, index):
+        # get the line after the current position
         return self.get_line(index-1)
 
     def combine_previous(self):
+        # combine the line with the one before it
         prev = self.previous(self.focus_position)
         if prev is None:
             return
@@ -320,6 +325,7 @@ class TextList(urwid.ListBox):
         return p_length
 
     def combine_next(self):
+        # combine the line with the one after it
         below = self.next(self.focus_position)
         if below is None:
             return
@@ -330,19 +336,25 @@ class TextList(urwid.ListBox):
         self.set_focus(self.focus_position+1)
 
     def split_focus(self, index):
+        # split the current line at the cursor position (when enter is pressed)
         focus = self.lines[index]
         position = focus.edit_pos
+        # make a new edit for split half of the line
         new_edit = TextLine(focus.text[position:], self.display)
         focus.set_edit_text(focus.text[:position])
         self.focus.set_edit_pos(0)
+        # insert the new line at the correct index
         self.lines.insert(index+1, new_edit)
 
     def save_file(self):
+        # this function is used to save the current file.
         with open(self.fname, 'w') as f:
             for line in self.lines:
                 f.write(line.edit_text.rstrip()+'\n')
 
     def keypress(self, size, key):
+        # this function implements all the keypress behaviour of the text editor window
+        # some of the keypress strings are grabbed from the config becuase they are customizable
         ret = super().keypress(size, key)
         if key == 'down' or key == 'up':
             self.display.update_status()
@@ -350,7 +362,7 @@ class TextList(urwid.ListBox):
             self.split_focus(self.focus_position)
             self.display.loop.process_input(['down'])
             self.display.update_status()
-
+        # the next two conditionals use regex to create the Ctrl+arrow behaviour
         elif key == "ctrl right" or key == "meta right":
             line = self.focus
             xpos = line.edit_pos
@@ -366,7 +378,7 @@ class TextList(urwid.ListBox):
             starts = [m.start() for m in re_word.finditer(line.edit_text or "", 0, xpos)]
             word_pos = 0 if len(starts) == 0 else starts[-1]
             line.set_edit_pos(word_pos)
-
+        # this elif moves to the next tab and if user is on the last tab goes to the frst
         elif key == self.config['nexttab']:
             index = self.display.file_names.index(self.fname)
             if index+1 < len(self.display.file_names):
@@ -375,18 +387,19 @@ class TextList(urwid.ListBox):
                 next_index = 0
 
             self.switch_tabs(self.display.file_names[next_index])
-
+        # this elif closes the current tab
         elif key == self.config['closetab']:
             self.delete_tab(self.fname)
             self.display.save_tabs()
-
+        # this elif saves the current tab
         elif key == self.config['save']:
             self.save_file()
         return ret
 
 class MainGUI(object):
     def __init__(self):
-
+        # set up all the empty lists, dicts and strings needed
+        # also crea the widgets that will be used later
         self.cwd = os.getcwd()
         self.file_dict = {}
         self.file_names = []
@@ -437,6 +450,7 @@ class MainGUI(object):
         #self.listbox.populate('scum.py')
 
     def display(self):
+        # this method starts the main loop and such
         self.loop = urwid.MainLoop(self.top,
             self.palette, handle_mouse = False,
             unhandled_input = self.keypress)
@@ -446,6 +460,7 @@ class MainGUI(object):
         self.loop.run()
 
     def configure(self):
+        # this method is run to re-parse the config and set the palette
         self.config = read_config()
 
         self.style = get_style_by_name(self.config['style'])
@@ -454,9 +469,11 @@ class MainGUI(object):
             self.palette.append(tuple(self.config[item]))
 
     def update_status(self):
+        # this method is runs to update the top bar depending on the current state
         col, row = self.loop.screen.get_cols_rows()
 
         if self.state == 'editor':
+            # if in this state the bar should have SCUM, help directions, file name, and line, column
             status_bar = self.stext[1]
             coords = self.listbox.get_cursor_coords((200, len(self.listbox.lines)))
             position = [0, 0]
@@ -467,6 +484,7 @@ class MainGUI(object):
             self.tbar.set_text(status_bar)
 
         elif self.state == 'openfile':
+            # if in this state it should have directions to open a file
             selected = ''
             for f in self.new_files:
                 selected += strip_fname(f) + ' | '
@@ -474,6 +492,7 @@ class MainGUI(object):
             self.ofbbar.set_text(selected)
 
     def switch_states(self, state):
+        # this method is run to switch states, it reassigns what content is in the Frame
         if state == 'editor':
             self.top.contents['header'] = (self.status, None)
             self.top.contents['body'] = (self.listbox, None)
@@ -488,6 +507,7 @@ class MainGUI(object):
         self.state = state
 
     def open_tabs(self):
+        # this method reads the saved tabs from the data file and automatically opens the files on start up
         with open('resources/tabs.dat') as f:
             lines = [line.strip('\n') for line in f.readlines()]
 
@@ -495,14 +515,18 @@ class MainGUI(object):
             self.listbox.populate(line)
 
     def save_tabs(self):
+        # this method is run whenever a tab is opened or closed, it writes
+        # the current open file names to a data file to be read on start up
         with open('resources/tabs.dat', 'w') as f:
             for tab in self.file_names:
                 f.write(tab + '\n')
 
     def keypress(self, k):
+        # this method handles any keypresses that are unhandled by other widgets
         foc = self.top.focus_position
         self.update_status()
-
+        # this conditionals will only be run if other widgets didnt handle them already, if right
+        # or left keypresses go unhandled we know we are at the beginning or end of a line
         if k == 'left':
             self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(len(self.listbox.focus.edit_text))
@@ -520,21 +544,23 @@ class MainGUI(object):
             self.update_status()
             self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(length)
-
+        # this keypress opens up the configuration file so it can be edited
         elif k == 'ctrl e':
             self.listbox.populate('resources/config.txt')
-
+        # this keypress saves the changes of the config file and updates everything
         elif k == 'ctrl t':
             self.configure()
             self.loop.screen.register_palette(self.palette)
-            self.loop.screen.clear()
-
+            self.loop.screen.clear() # redarw the screen
+        # this keypress changes the state so that the open file state is showing
         elif k == self.config['open']:
             self.new_files = []
             self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(self.cwd, self)))
             self.browser.offset_rows = 1
             self.switch_states('openfile')
-
+        # this keypress only registers when enter is pressed in the open file state, otherwise the
+        # editor would have handled it. This means we need to open the selected files if there are any
+        # and set the state back to editor mode
         elif k == 'enter':
             if self.state == 'openfile':
                 self.switch_states('editor')
@@ -545,10 +571,10 @@ class MainGUI(object):
                     self.listbox.populate(self.file_names[0])
                 self.new_files = []
                 self.save_tabs()
-
+        # get outta here!!!
         elif k == 'ctrl x':
             raise urwid.ExitMainLoop()
-
+        # user needs help... so give them this help file I guess.
         elif k == 'esc':
             self.listbox.populate('resources/help.txt')
 
@@ -581,5 +607,6 @@ class MainGUI(object):
             palette.append(row)
         self.loop.screen.register_palette(palette)
 
+# start this baby up!
 main = MainGUI()
 main.display()
