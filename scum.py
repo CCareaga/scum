@@ -31,7 +31,7 @@ CONFIG = {
         '41': '00d75f', '42': '00d787', '43': '00d7af', '44': '00d7d7', '45': '00d7ff',
         '46': '00ff00', '47': '00ff5f', '48': '00ff87', '49': '00ffaf', '50': '00ffd7',
         '51': '00ffff', '52': '5f0000', '53': '5f005f', '54': '5f0087', '55': '5f00af',
-        '56': '5f00d7', '57': '5f00ff', '58': '5f5f00', '59': '5f5f5f', '60': '5f5f87',
+        '56': '5f00d7', '57': '5f00ff','58': '5f5f00', '59': '5f5f5f', '60': '5f5f87',
         '61': '5f5faf', '62': '5f5fd7', '63': '5f5fff', '64': '5f8700', '65': '5f875f',
         '66': '5f8787', '67': '5f87af', '68': '5f87d7', '69': '5f87ff', '70': '5faf00',
         '71': '5faf5f', '72': '5faf87', '73': '5fafaf', '74': '5fafd7', '75': '5fafff',
@@ -95,6 +95,7 @@ CONFIG = {
 
         'open':'ctrl o',
         'save':'ctrl d',
+        'find':'ctrl f',
         'nexttab':'alt tab',
         'closetab':'ctrl w',
         'exit':'ctrl x'
@@ -158,6 +159,32 @@ def rgb_to_short(rgb, mapping):
     res = ''.join([ ('%02.x' % i) for i in res ])
     equiv = mapping[res]
     return equiv, res
+
+class FindField(urwid.Edit):
+    def __init__(self, display, **kwargs):
+        super().__init__("find: ", **kwargs)
+        self.display = display
+
+    def goto(self, word):
+        for line in self.display.listbox.lines:
+            if word in line.edit_text:
+                index = line.edit_text.find(word)
+                ln = self.display.listbox.lines.index(line)
+                self.display.listbox.set_focus(ln)
+                self.display.listbox.focus.set_edit_pos(index)
+                self.display.find = word
+                break
+
+    def keypress(self, size, key):
+        ret = super().keypress(size, key)
+
+        if key == 'enter':
+            self.display.top.contents['footer'] = (self.display.foot_col, None)
+            self.display.top.set_focus('body')
+            self.goto(self.edit_text)
+            self.set_edit_text("")
+
+        return ret
 
 class TextLine(urwid.Edit):
     def __init__(self, text, display, tabsize=4, **kwargs):
@@ -254,6 +281,7 @@ class TextList(urwid.ListBox):
             foot = urwid.AttrMap(foot_col, 'footer')
             self.display.top.contents['footer'] = (foot, None)
             self.switch_tabs(new_name)
+            self.display.update_status()
 
     def get_lexer(self):
         # this function gets the lexer depending on the files name
@@ -430,6 +458,8 @@ class MainGUI(object):
         self.foot_col = urwid.Columns(self.tabs)
         self.foot = urwid.AttrMap(self.foot_col, 'footer')
 
+        self.fedit = urwid.AttrMap(FindField(self), 'footer')
+
         # openfile state GUI
         self.new_files = []
         self.openfile_top = urwid.Text(self.openfile_stext)
@@ -521,6 +551,10 @@ class MainGUI(object):
             for tab in self.file_names:
                 f.write(tab + '\n')
 
+    def mouse_event(self, size, event, button, col, row, focus):
+        if event == 'mouse press':
+            self.listbox.focus.insert_text('mouse')
+
     def keypress(self, k):
         # this method handles any keypresses that are unhandled by other widgets
         foc = self.top.focus_position
@@ -547,6 +581,7 @@ class MainGUI(object):
         # this keypress opens up the configuration file so it can be edited
         elif k == 'ctrl e':
             self.listbox.populate('resources/config.txt')
+            self.update_status()
         # this keypress saves the changes of the config file and updates everything
         elif k == 'ctrl t':
             self.configure()
@@ -571,7 +606,11 @@ class MainGUI(object):
                     self.listbox.populate(self.file_names[0])
                 self.new_files = []
                 self.save_tabs()
-        # get outta here!!!
+
+        elif k == self.config['find']:
+            self.top.contents['footer'] = (self.fedit, None)
+            self.top.set_focus('footer')
+
         elif k == 'ctrl x':
             raise urwid.ExitMainLoop()
         # user needs help... so give them this help file I guess.

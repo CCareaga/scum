@@ -4,6 +4,13 @@ Scum is a terminal-based, multi-tab text editor written in Python.
 
 ![](https://github.com/CCareaga/scum/blob/master/docs/screenshot.png?raw=true "Scum in Gnome-Terminal")
 
+### About
+------------
+First of all, Scum is really just a novelty editor I wrote mostly for learning and fun. It was not made to compete with
+seasoned text editors such as Emacs or Vim (hence the name "Scum"). With that being said, it is still a fully-functional
+terminal based editor! It can be used for both quick editing and full on development. Overall it was extremely fun to write
+and was a wonderful learning experience. Enjoy! (at your own risk)
+
 ### Features
 ------------
   - Syntax-highlighting
