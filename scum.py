@@ -1,6 +1,7 @@
 import urwid
 import os
 import re
+import signal
 from modules import DirectoryNode
 
 import pygments.util
@@ -290,8 +291,7 @@ class TextList(urwid.ListBox):
         except pygments.util.ClassNotFound:
             lexer = TextLexer()
 
-        lexer = Python3Lexer() if isinstance(lexer, PythonLexer) else lexer
-        #lexer.add_filter(NonEmptyFilter())
+        #lexer = Python3Lexer() if isinstance(lexer, PythonLexer) else lexer
         lexer.add_filter('tokenmerge')
 
         return lexer
@@ -342,26 +342,29 @@ class TextList(urwid.ListBox):
         return self.get_line(index-1)
 
     def combine_previous(self):
-        # combine the line with the one before it
+        # combine the line with the one before it (used with backspace)
         prev = self.previous(self.focus_position)
         if prev is None:
             return
-        focus = self.lines[self.focus_position]
+
+        focus = self.focus
+        f_pos = self.focus_position
+
         p_length = len(prev.edit_text)
-        prev.set_edit_text(prev.text + focus.text)
-        del self.lines[self.focus_position]
-        return p_length
+        # don't mess with this, it is slighly magic, but it works!
+        prev.set_edit_text(prev.edit_text + focus.edit_text)
+        self.display.loop.process_input(['up'])
+        self.focus.set_edit_pos(p_length)
+        del self.lines[self.focus_position+1]
 
     def combine_next(self):
-        # combine the line with the one after it
+        # combine the line with the one after it (used with delete)
         below = self.next(self.focus_position)
         if below is None:
             return
-        focus = self.lines[self.focus_position]
-        below.set_edit_pos(0)
-        below.set_edit_text(focus.text + below.text)
+        self.focus.set_edit_text(self.focus.text + below.text)
         del self.lines[self.focus_position+1]
-        self.set_focus(self.focus_position+1)
+        #self.set_focus(self.focus_position+1)
 
     def split_focus(self, index):
         # split the current line at the cursor position (when enter is pressed)
@@ -390,6 +393,7 @@ class TextList(urwid.ListBox):
             self.split_focus(self.focus_position)
             self.display.loop.process_input(['down'])
             self.display.update_status()
+
         # the next two conditionals use regex to create the Ctrl+arrow behaviour
         elif key == "ctrl right" or key == "meta right":
             line = self.focus
@@ -406,6 +410,7 @@ class TextList(urwid.ListBox):
             starts = [m.start() for m in re_word.finditer(line.edit_text or "", 0, xpos)]
             word_pos = 0 if len(starts) == 0 else starts[-1]
             line.set_edit_pos(word_pos)
+
         # this elif moves to the next tab and if user is on the last tab goes to the frst
         elif key == self.config['nexttab']:
             index = self.display.file_names.index(self.fname)
@@ -415,6 +420,7 @@ class TextList(urwid.ListBox):
                 next_index = 0
 
             self.switch_tabs(self.display.file_names[next_index])
+
         # this elif closes the current tab
         elif key == self.config['closetab']:
             self.delete_tab(self.fname)
@@ -435,6 +441,11 @@ class MainGUI(object):
         self.tabs = []
 
         self.state = ''
+
+        # this variable represents the UI layout. if this value is False
+        # then the tabs are on bottom and status is on top. when this value
+        # is True then the layout is switched!
+        self.layout = False
 
         self.configure()
 
@@ -484,7 +495,7 @@ class MainGUI(object):
         self.loop = urwid.MainLoop(self.top,
             self.palette, handle_mouse = False,
             unhandled_input = self.keypress)
-        self.loop.screen.set_terminal_properties(256)
+        self.loop.screen.set_terminal_properties(colors=256)
         self.register_palette()
         self.update_status()
         self.loop.run()
@@ -536,13 +547,21 @@ class MainGUI(object):
 
         self.state = state
 
+    def toggle_layout(self):
+        self.layout = not self.layout
+        self.top.contents['header'], self.top.contents['footer'] = self.top.contents['footer'], self.top.contents['header']
+
     def open_tabs(self):
         # this method reads the saved tabs from the data file and automatically opens the files on start up
         with open('resources/tabs.dat') as f:
             lines = [line.strip('\n') for line in f.readlines()]
 
         for line in lines:
-            self.listbox.populate(line)
+            if line != lines[-1]:
+                self.listbox.populate(line)
+            else:
+                if line == 'True':
+                    self.toggle_layout()
 
     def save_tabs(self):
         # this method is run whenever a tab is opened or closed, it writes
@@ -574,10 +593,13 @@ class MainGUI(object):
             # current text line with the one prior. This function
             # returns the length of the previous line. We have to wait to set the edit_pos
             # because self.loop.process_input changes the edit_pos
-            length = self.listbox.combine_previous()
+            self.listbox.combine_previous()
             self.update_status()
-            self.loop.process_input(['up'])
-            self.listbox.focus.set_edit_pos(length)
+            #self.loop.process_input(['up'])
+            #self.listbox.focus.set_edit_pos(length)
+        elif k == 'delete':
+            self.listbox.combine_next()
+            self.update_status()
         # this keypress opens up the configuration file so it can be edited
         elif k == 'ctrl e':
             self.listbox.populate('resources/config.txt')
@@ -587,7 +609,7 @@ class MainGUI(object):
             self.configure()
             self.loop.screen.register_palette(self.palette)
             self.loop.screen.clear() # redarw the screen
-        # this keypress changes the state so that the open file state is showing
+
         elif k == self.config['open']:
             self.new_files = []
             self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(self.cwd, self)))
@@ -646,6 +668,10 @@ class MainGUI(object):
             palette.append(row)
         self.loop.screen.register_palette(palette)
 
-# start this baby up!
+os.system('stty -ixon') # disable XOFF to accept Ctrl-S
+# instantiate it!
 main = MainGUI()
+signal.signal(signal.SIGTSTP, signal.SIG_IGN)
+signal.signal(signal.SIGINT, signal.SIG_IGN)
 main.display()
+os.system('stty ixon') # re-enable XOFF!

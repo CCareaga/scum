@@ -1,4 +1,3 @@
-
 Keybindings can be customized in the config file. To open said file press Ctrl+E. To update the
 changes save the config file and press Ctrl+T. The changes will then be in effect.
 
