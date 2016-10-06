@@ -171,11 +171,13 @@ class FindField(urwid.Edit):
         key = urwid.connect_signal(self, 'change', self.change_handler)
         self.index = 0
         self.line = 0
+        self.last = 0
 
     def goto(self, word):
         for line in self.display.listbox.lines:
             if word in line.text:
                 self.index = line.edit_text.find(word)
+                self.last = self.line
                 self.line = self.display.listbox.lines.index(line)
                 self.display.find = word
                 self.display.top.set_focus('body')
@@ -189,16 +191,17 @@ class FindField(urwid.Edit):
     def keypress(self, size, key):
         ret = super().keypress(size, key)
 
-        if key == 'enter':
-            self.display.finding = False
+        if key == self.display.config['find']:
             self.display.top.contents['footer'] = (self.display.foot_col, None)
-            self.display.top.set_focus('body')
             self.set_edit_text("")
 
             for file in self.display.file_names:
             # since these files are already open, the list box won't repopulate
             # but the tabs will be re-drawn!
                 self.display.listbox.populate(file)
+            self.display.listbox.set_focus(self.last)
+            self.display.finding = False
+            return None
 
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
@@ -231,7 +234,6 @@ class TextLine(urwid.Edit):
         # this function updates the status bar and implements tab behaviour
 
         if self.display.finding:
-            self.display.top.set_focus('footer')
             self.display.finder.keypress(size, key)
             return None
 
@@ -266,9 +268,11 @@ class TextList(urwid.ListBox):
             # Then iterate through and create a new TextLine object for each line
             with open(fname) as f:
                 content = [x.strip('\n') for x in f.readlines()]
-
+            count = 0
             for line in content:
                 text = TextLine(line, self.display)
+                #text.set_caption(str(count))
+                count += 1
                 new_lines.append(text)
             # if the file is empty then add one empty line so it can be displayed
             if len(new_lines) < 1:
@@ -285,7 +289,10 @@ class TextList(urwid.ListBox):
         # this is done to ensure that the bottom bar is re-drawn after opening files
         foot_col = urwid.Columns(self.display.tabs)
         foot = urwid.AttrMap(foot_col, 'footer')
-        self.display.top.contents['footer'] = (foot, None)
+        if self.display.layout:
+            self.display.top.contents['header'] = (foot, None)
+        else:
+            self.display.top.contents['footer'] = (foot, None)
 
     def delete_tab(self, fname):
         files = self.display.file_names
@@ -303,7 +310,10 @@ class TextList(urwid.ListBox):
             # reset the footer with new tab amount
             foot_col = urwid.Columns(self.display.tabs)
             foot = urwid.AttrMap(foot_col, 'footer')
-            self.display.top.contents['footer'] = (foot, None)
+            if self.display.layout:
+                self.display.top.contents['header'] = (foot, None)
+            else:
+                self.display.top.contents['footer'] = (foot, None)
             self.switch_tabs(new_name)
             self.display.update_status()
 
@@ -324,6 +334,8 @@ class TextList(urwid.ListBox):
         if self.fname != fname: # make sure we aren't already on this tab
             index = self.display.file_names.index(fname)
             tabs = self.display.tabs
+            if self.fname != ' ': #hopefully ensures all lines are saved when switching tabs
+                self.display.file_dict[self.fname][:] = self.lines
             # change tab colors depending on current index
             for i in range(0, len(tabs)):
                 if i != index:
@@ -525,11 +537,10 @@ class MainGUI(object):
         self.register_palette()
         self.update_status()
 
-        try:
-            self.loop.run()
-        except:
-            with open('resources/tabs.dat', 'a') as f:
-                f.write(str(self.layout))
+        self.loop.run()
+
+        with open('resources/tabs.dat', 'a') as f:
+            f.write(str(self.layout))
 
     def configure(self):
         # this method is run to re-parse the config and set the palette
@@ -569,6 +580,9 @@ class MainGUI(object):
             self.top.contents['header'] = (self.status, None)
             self.top.contents['body'] = (self.listbox, None)
             self.top.contents['footer'] = (self.foot_col, None)
+            if self.layout:
+                self.top.contents['footer'] = (self.status, None)
+                self.top.contents['header'] = (self.foot_col, None)
 
         elif state == 'openfile':
             self.top.contents['header'] = (self.oftbar, None)
@@ -669,7 +683,6 @@ class MainGUI(object):
         elif k == self.config['find']:
             self.finding = True
             self.top.contents['footer'] = (self.fedit, None)
-            self.top.set_focus('footer')
 
         elif k == 'ctrl x':
             # get outta here! but first save the layout of the UI
