@@ -173,20 +173,26 @@ class FindField(urwid.Edit):
         self.line = 0
         self.last = 0
 
-    def goto(self, word):
-        for line in self.display.listbox.lines:
-            if word in line.text:
-                self.index = line.edit_text.find(word)
-                self.last = self.line
-                self.line = self.display.listbox.lines.index(line)
-                self.display.find = word
-                self.display.top.set_focus('body')
-                self.display.listbox.lines[self.line].set_edit_pos(self.index)
-                self.display.listbox.set_focus(self.line)
-                break
+    def goto(self, word, current):
+
+        curln = self.display.listbox.lines[current[0]]
+        segment = curln.text[current[1]:]
+        if word in segment:
+             self.index += segment.find(word)+1
+        else:
+            for line in self.display.listbox.lines[current[0]:]:
+                if word in line.text:
+                    self.index = line.edit_text.find(word)
+                    self.last = self.line
+                    self.line = self.display.listbox.lines.index(line)
+                    self.display.find = word
+                    self.display.top.set_focus('body')
+                    self.display.listbox.lines[self.line].set_edit_pos(self.index)
+                    self.display.listbox.set_focus(self.line)
+                    break
 
     def change_handler(self, widget, newtext):
-       self.goto(newtext)
+       self.goto(newtext, (0,0))
 
     def keypress(self, size, key):
         ret = super().keypress(size, key)
@@ -202,6 +208,12 @@ class FindField(urwid.Edit):
             self.display.listbox.set_focus(self.last)
             self.display.finding = False
             return None
+
+        if key == 'right':
+            self.goto(self.edit_text, (self.line, self.index+1))
+
+        if key == 'backspace':
+            self.goto(self.edit_text, (0,0))
 
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
@@ -354,6 +366,7 @@ class TextList(urwid.ListBox):
             # not really needed since no mouse support :/
             self.display.top.set_focus('body')
             return
+        self.set_focus(0)
 
     def get_tokens(self, text):
         # this function returns the tokens for the provided text
@@ -685,9 +698,7 @@ class MainGUI(object):
             self.top.contents['footer'] = (self.fedit, None)
 
         elif k == 'ctrl x':
-            # get outta here! but first save the layout of the UI
-            with open('resources/tabs.dat', 'a') as f:
-                f.write(str(self.layout))
+            # get outta here!
             raise urwid.ExitMainLoop()
         # user needs help... so give them this help file I guess.
         elif k == 'esc':
