@@ -31,4 +31,4 @@ header:white,dark gray,bold
 footer:white,dark gray,bold
 focus:light gray,dark blue,bold
 key:white,dark blue,bold
-selected:white,dark red,bold
+selected:white,dark blue,bold

@@ -108,9 +108,6 @@ CONFIG['rgb_to_short'] = {v: k for k, v in CONFIG['short_to_rgb'].items()}
 palette_items = ['header', 'flagged focus', 'key', 'footer', 'focus', 'selected', 'flagged', 'browse']
 text_options = ['bold', 'underline', 'standout']
 
-def change_handler(self, widget, newtext):
-    widget.goto(newtext)
-
 def read_config():
     new_config = CONFIG # make a copy of the default config
     with open('resources/config.txt', 'r') as f:
@@ -172,24 +169,29 @@ class FindField(urwid.Edit):
         self.index = 0
         self.line = 0
         self.last = 0
+        self.on_line = []
+        self.history = []
 
     def goto(self, word, current):
-
-        curln = self.display.listbox.lines[current[0]]
-        segment = curln.text[current[1]:]
-        if word in segment:
-             self.index += segment.find(word)+1
+        self.history.append((self.line, self.index))
+        if len(self.on_line) > 0:
+            self.index = self.on_line.pop(0)
         else:
             for line in self.display.listbox.lines[current[0]:]:
-                if word in line.text:
-                    self.index = line.edit_text.find(word)
+                if word in line.edit_text:
+                    for m in re.finditer(word, line.edit_text):
+                        self.on_line.append(m.start())
+
+                    self.index = self.on_line.pop(0)
+
                     self.last = self.line
                     self.line = self.display.listbox.lines.index(line)
                     self.display.find = word
-                    self.display.top.set_focus('body')
-                    self.display.listbox.lines[self.line].set_edit_pos(self.index)
-                    self.display.listbox.set_focus(self.line)
                     break
+
+        self.display.top.set_focus('body')
+        self.display.listbox.lines[self.line].set_edit_pos(self.index)
+        self.display.listbox.set_focus(self.line)
 
     def change_handler(self, widget, newtext):
        self.goto(newtext, (0,0))
@@ -200,7 +202,7 @@ class FindField(urwid.Edit):
         if key == self.display.config['find']:
             self.display.top.contents['footer'] = (self.display.foot_col, None)
             self.set_edit_text("")
-
+            self.on_line = []
             for file in self.display.file_names:
             # since these files are already open, the list box won't repopulate
             # but the tabs will be re-drawn!
@@ -210,9 +212,18 @@ class FindField(urwid.Edit):
             return None
 
         if key == 'right':
-            self.goto(self.edit_text, (self.line, self.index+1))
+            self.goto(self.edit_text, (self.line+1, self.index+1))
+
+        if key == 'left':
+            if self.history != []:
+                previous = self.history.pop(-1)
+                self.last = self.line
+                self.line, self.index = previous[0], previous[1]
+                self.display.listbox.lines[self.line].set_edit_pos(self.index)
+                self.display.listbox.set_focus(self.line)
 
         if key == 'backspace':
+            self.history = []
             self.goto(self.edit_text, (0,0))
 
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
@@ -244,7 +255,6 @@ class TextLine(urwid.Edit):
 
     def keypress(self, size, key):
         # this function updates the status bar and implements tab behaviour
-
         if self.display.finding:
             self.display.finder.keypress(size, key)
             return None
@@ -255,6 +265,7 @@ class TextLine(urwid.Edit):
             self.display.update_status()
         elif key == 'tab':
             self.insert_text(' ' * self.tab)
+
         return ret
 
 class TextList(urwid.ListBox):
@@ -280,11 +291,11 @@ class TextList(urwid.ListBox):
             # Then iterate through and create a new TextLine object for each line
             with open(fname) as f:
                 content = [x.strip('\n') for x in f.readlines()]
-            count = 0
+            #count = 0
             for line in content:
                 text = TextLine(line, self.display)
                 #text.set_caption(str(count))
-                count += 1
+                #count += 1
                 new_lines.append(text)
             # if the file is empty then add one empty line so it can be displayed
             if len(new_lines) < 1:
@@ -336,7 +347,6 @@ class TextList(urwid.ListBox):
         except pygments.util.ClassNotFound:
             lexer = TextLexer()
 
-        #lexer = Python3Lexer() if isinstance(lexer, PythonLexer) else lexer
         lexer.add_filter('tokenmerge')
 
         return lexer
@@ -505,7 +515,6 @@ class MainGUI(object):
         self.openfile_stext = ('header', ['Open File: Arrows to navigate ',
                                     ('key', 'Space'), ' Select ',
                                     ('key', 'Enter'), ' Open '])
-
         # editor state GUI
         self.bbar = urwid.Text('')
 
@@ -521,7 +530,7 @@ class MainGUI(object):
 
         self.finder = FindField(self)
         self.fedit = urwid.AttrMap(self.finder, 'footer')
-        #key = urwid.connect_signal(self.finder, 'change', change_handler)
+
         # openfile state GUI
         self.new_files = []
         self.openfile_top = urwid.Text(self.openfile_stext)
@@ -538,8 +547,6 @@ class MainGUI(object):
         self.state = 'editor'
 
         self.open_tabs()
-        #self.listbox.populate('resources/start_up.txt')
-        #self.listbox.populate('scum.py')
 
     def display(self):
         # this method starts the main loop and such
@@ -655,8 +662,7 @@ class MainGUI(object):
             # because self.loop.process_input changes the edit_pos
             self.listbox.combine_previous()
             self.update_status()
-            #self.loop.process_input(['up'])
-            #self.listbox.focus.set_edit_pos(length)
+
         elif k == 'delete':
             self.listbox.combine_next()
             self.update_status()
