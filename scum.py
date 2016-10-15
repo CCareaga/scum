@@ -2,6 +2,7 @@ import urwid
 import os
 import re
 import signal
+import string
 from modules import DirectoryNode
 
 import pygments.util
@@ -165,7 +166,7 @@ class FindField(urwid.Edit):
     def __init__(self, display, **kwargs):
         super().__init__("find: ", **kwargs)
         self.display = display
-        key = urwid.connect_signal(self, 'change', self.change_handler)
+        #key = urwid.connect_signal(self, 'change', self.change_handler)
         self.index = 0
         self.line = 0
         self.last = 0
@@ -173,9 +174,15 @@ class FindField(urwid.Edit):
         self.history = []
 
     def goto(self, word, current):
-        self.history.append((self.line, self.index))
+        # this method is some crazy sh*t, I wrote it and I still am not quite sure how it works...
+        # but since it works, I will not mess with it :-)
+        found = False
+        if self.history == [] or self.history[-1] != (self.line, self.index):
+            self.history.append((self.line, self.index))
+
         if len(self.on_line) > 0:
             self.index = self.on_line.pop(0)
+
         else:
             for line in self.display.listbox.lines[current[0]:]:
                 if word in line.edit_text:
@@ -186,20 +193,29 @@ class FindField(urwid.Edit):
 
                     self.last = self.line
                     self.line = self.display.listbox.lines.index(line)
-                    self.display.find = word
+                    found = True
                     break
-
+        if not found:
+            self.history.pop(-1)
+            return
         self.display.top.set_focus('body')
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
 
-    def change_handler(self, widget, newtext):
-       self.goto(newtext, (0,0))
+    def handle_key(self, key):
+        # this is where all the keypress for the find bar happen, I don't use the keypress method
+        # becuase we are never actually focused on the find bar, we are always focused on the text
+        # editor. We grab the key presses from the text editor and manually feed them into the find
+        # bar, and running each function according to the keypress we get
 
-    def keypress(self, size, key):
-        ret = super().keypress(size, key)
+        if key in string.printable: # if the key press was a printable character
+            # we are searching for a new string so we clear everyhting and find the first occurence
+            self.on_line = []
+            self.insert_text(key)
+            self.goto(self.edit_text, (0,0))
+            self.history = []
 
-        if key == self.display.config['find']:
+        if key == self.display.config['find']: # if ctrl+f is pressed again stop finding
             self.display.top.contents['footer'] = (self.display.foot_col, None)
             self.set_edit_text("")
             self.on_line = []
@@ -207,29 +223,36 @@ class FindField(urwid.Edit):
             # since these files are already open, the list box won't repopulate
             # but the tabs will be re-drawn!
                 self.display.listbox.populate(file)
-            self.display.listbox.set_focus(self.last)
+            self.display.listbox.set_focus(self.line)
             self.display.finding = False
-            return None
+            return
 
-        if key == 'right':
-            self.goto(self.edit_text, (self.line+1, self.index+1))
+        if key == 'right': # go to the next occurence of the search string
+            if len(self.edit_text) > 0:
+                self.goto(self.edit_text, (self.line+1, self.index+1))
 
-        if key == 'left':
-            if self.history != []:
+        if key == 'left': # go to the previous occurence of the search string
+            if len(self.history) > 0: # if there is a previous one to go to
                 previous = self.history.pop(-1)
                 self.last = self.line
                 self.line, self.index = previous[0], previous[1]
                 self.display.listbox.lines[self.line].set_edit_pos(self.index)
                 self.display.listbox.set_focus(self.line)
+            else: # we are at the first occurence so ensure that nothing wonky happens
+                #self.history = []
+                self.on_line = []
+                self.goto(self.edit_text, (0,0))
+                self.history = []
+                return
 
-        if key == 'backspace':
+        if key == 'backspace': # this means we are starting a new search
+            self.on_line = []
+            self.set_edit_text(self.edit_text[:-1]) # get the string wihtout the last letter
+            self.goto(self.edit_text, (0, 0))
             self.history = []
-            self.goto(self.edit_text, (0,0))
 
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
-
-        return ret
 
 class TextLine(urwid.Edit):
     def __init__(self, text, display, tabsize=4, **kwargs):
@@ -256,7 +279,7 @@ class TextLine(urwid.Edit):
     def keypress(self, size, key):
         # this function updates the status bar and implements tab behaviour
         if self.display.finding:
-            self.display.finder.keypress(size, key)
+            self.display.finder.handle_key(key)
             return None
 
         ret = super().keypress(size, key)
