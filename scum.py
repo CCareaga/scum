@@ -96,7 +96,7 @@ CONFIG = {
         'style':'monokai',
 
         'open':'ctrl o',
-        'save':'ctrl d',
+        'save':'ctrl s',
         'find':'ctrl f',
         'nexttab':'alt tab',
         'closetab':'ctrl w',
@@ -171,18 +171,30 @@ class UndoStack(object):
         if self.items == []:
             return
         item = self.items.pop(-1)
-        #self.display.listbox.focus.insert_text(str(len(self.items)))
+        # item[0] = keys, item[1] = position, item[2] = change
+
         self.display.listbox.set_focus(item[1][0])
         self.display.listbox.focus.set_edit_pos(item[1][1])
 
-        if item[2]:
-            if item[0] == '':
+        if item[2]: # something deleted, so add
+            if item[0] == 'backspace':
                 self.display.listbox.set_focus(item[1][0])
-               # self.display.listbox.focus.set_edit_pos(len(self.display.listbox.focus.edit_text))
-                self.display.loop.process_input(['enter'])
+                self.display.listbox.focus.set_edit_pos(item[1][1])
+                self.display.listbox.do_enter()
+                self.items.pop(-1)
+                return
+            elif item[0][-1] == '\n':
+                text = TextLine(item[0][:-1], self.display)
+                self.display.listbox.lines.insert(item[1][0], text)
             else:
                 self.display.listbox.focus.insert_text(item[0])
-        else:
+
+        else: # something added so delete!
+            if item[0] == 'enter':
+                self.display.listbox.set_focus(item[1][0]+1)
+                self.display.listbox.combine_previous()
+                return
+
             old_text = self.display.listbox.focus.edit_text
             index = int(item[0])
             #self.display.loop.process_input(['backspace'])
@@ -190,10 +202,8 @@ class UndoStack(object):
                 new_text = old_text[:index-1] + old_text[index:]
             else:
                 new_text = old_text[:index-1]
+
             self.display.listbox.focus.set_edit_text(new_text)
-
-        self.display.listbox.focus.set_edit_pos(item[1][1]+1)
-
 
     def log(self, keys, position, change):
         #keys: text to insert, or un-insert
@@ -332,7 +342,7 @@ class TextLine(urwid.Edit):
             lb = self.display.listbox
             pos = lb.focus.edit_pos
             for i in range(1, 5):
-                self.display.undostack.log(pos+i, [lb.focus_position, lb.focus.edit_pos], 0)
+                self.display.ustacks[self.display.listbox.fname].log(pos+i, [lb.focus_position, lb.focus.edit_pos], 0)
             self.insert_text(' ' * self.tab)
 
         return ret
@@ -373,6 +383,7 @@ class TextList(urwid.ListBox):
                 new_lines.append(text)
             # create a new tab (button widget) with the correct attributes
             self.display.file_dict[fname] = new_lines
+            self.display.ustacks[fname] = UndoStack(self.display)
             button = urwid.Button(self.short_name)
             button._label.align = 'center'
             attrib = urwid.AttrMap(button, 'footer')
@@ -454,6 +465,21 @@ class TextList(urwid.ListBox):
             self.display.top.set_focus('body')
             return
 
+    def do_enter(self):
+        #lead = self.get_leading()
+        self.split_focus(self.focus_position)
+        self.display.loop.process_input(['down'])
+        self.display.update_status()
+
+        #if self.focus.edit_text.strip() == "":
+            #self.focus.set_edit_pos(lead)
+            #self.focus.set_edit_text(str(lead) + self.focus.edit_text)
+
+    def get_leading(self):
+        #get the leading whitespace of a line!
+        line = self.lines[self.focus_position]
+        return len(self.focus.edit_text) - len(self.focus.edit_text.lstrip())
+
     def get_tokens(self, text):
         # this function returns the tokens for the provided text
         return list(self.lexer.get_tokens(text))
@@ -485,7 +511,7 @@ class TextList(urwid.ListBox):
         f_pos = self.focus_position
 
         p_length = len(prev.edit_text)
-        # don't mess with this, it is slighly magic, but it works!
+        # don't mess with this, it is slightly magic, but it works!
         prev.set_edit_text(prev.edit_text + focus.edit_text)
         self.display.loop.process_input(['up'])
         self.focus.set_edit_pos(p_length)
@@ -525,31 +551,35 @@ class TextList(urwid.ListBox):
     def keypress(self, size, key):
         # this function implements all the keypress behaviour of the text editor window
         # some of the keypress strings are grabbed from the config becuase they are customizable
-        keys = ''
+        bkey, dkey = '', ''
+        pos = 0
         if self.lines != []:
             if len(self.focus.edit_text) > 0:
                 pos = self.focus.edit_pos
-                keys = self.focus.edit_text[pos-1]
+                bkey = self.focus.edit_text[pos-1]
+                if pos < len(self.focus.edit_text):
+                    dkey = self.focus.edit_text[pos]
 
         ret = super().keypress(size, key)
+        if self.display.finding:
+            return
 
         if key in string.printable:
             pos = self.focus.edit_pos
-            self.display.undostack.log(pos, [self.focus_position, self.focus.edit_pos], 0)
+            self.display.ustacks[self.fname].log(pos, [self.focus_position, self.focus.edit_pos], 0)
 
         elif key == 'backspace':
-            self.display.undostack.log(keys, [self.focus_position, self.focus.edit_pos], 1)
-            #self.display.loop.process_input(['backspace'])
-            pass
+            self.display.ustacks[self.fname].log(bkey, [self.focus_position, self.focus.edit_pos], 1)
+
+        elif key == 'delete':
+            self.display.ustacks[self.fname].log(dkey, [self.focus_position, self.focus.edit_pos], 1)
+
         elif key == 'down' or key == 'up':
             self.display.update_status()
 
         elif key == 'enter':
-            self.display.undostack.log(pos, [self.focus_position, self.focus.edit_pos], 0)
-            self.split_focus(self.focus_position)
-            self.display.loop.process_input(['down'])
-            self.display.update_status()
-
+            self.display.ustacks[self.fname].log('enter', [self.focus_position, self.focus.edit_pos], 0)
+            self.do_enter()
         # the next two conditionals use regex to create the Ctrl+arrow behaviour
         elif key == "ctrl right" or key == "meta right":
             line = self.focus
@@ -584,6 +614,7 @@ class TextList(urwid.ListBox):
         # this elif saves the current tab
         elif key == self.config['save']:
             self.save_file()
+
         return ret
 
 class MainGUI(object):
@@ -592,6 +623,7 @@ class MainGUI(object):
         # also crea the widgets that will be used later
         self.cwd = os.getcwd()
         self.file_dict = {}
+        self.ustacks = {}
         self.file_names = []
         self.cursors = {}
         self.palette = []
@@ -762,11 +794,14 @@ class MainGUI(object):
             # returns the length of the previous line. We have to wait to set the edit_pos
             # because self.loop.process_input changes the edit_pos
             self.listbox.combine_previous()
+            self.ustacks[self.listbox.fname].log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
             self.update_status()
 
         elif k == 'delete':
             self.listbox.combine_next()
+            self.ustacks[self.listbox.fname].log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
             self.update_status()
+
         # this keypress opens up the configuration file so it can be edited
         elif k == 'ctrl e':
             self.listbox.populate('resources/config.txt')
@@ -778,6 +813,7 @@ class MainGUI(object):
             self.loop.screen.clear() # redraw the screen
 
         elif k == 'ctrl d':
+            self.ustacks[self.listbox.fname].log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
             self.listbox.del_line()
 
         elif k == 'ctrl l':
@@ -807,7 +843,7 @@ class MainGUI(object):
             self.finding = True
             self.top.contents['footer'] = (self.fedit, None)
         elif k == 'ctrl q':
-            self.undostack.undo()
+            self.ustacks[self.listbox.fname].undo()
 
         elif k == 'ctrl x':
             # get outta here!
