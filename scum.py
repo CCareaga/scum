@@ -98,6 +98,8 @@ CONFIG = {
         'open':'ctrl o',
         'save':'ctrl s',
         'find':'ctrl f',
+        'undo':'ctrl q',
+        'delline':'ctrl d',
         'nexttab':'alt tab',
         'closetab':'ctrl w',
         'exit':'ctrl x'
@@ -168,6 +170,10 @@ class UndoStack(object):
         self.display = display
 
     def undo(self):
+        # this method undoes the last action from the undo stack. This could be a character added, deleted, a line
+        # added, a line combine with the previous or the next. It is pretty ugly becuase there are quite a bit of special
+        # cases to take into consideration like pressing delete at the end of a line, or backspace at the beginning of
+        # a line. It works though!
         if self.items == []:
             return
         item = self.items.pop(-1)
@@ -177,24 +183,24 @@ class UndoStack(object):
         self.display.listbox.focus.set_edit_pos(item[1][1])
 
         if item[2]: # something deleted, so add
-            if item[0] == 'backspace':
+            if item[0] == 'backspace': # backspace at beginning of line or del at end
                 self.display.listbox.set_focus(item[1][0])
                 self.display.listbox.focus.set_edit_pos(item[1][1])
                 self.display.listbox.do_enter()
                 self.items.pop(-1)
                 return
-            elif item[0][-1] == '\n':
+            elif item[0][-1] == '\n': # if ctrl d is pressed (delete line)
                 text = TextLine(item[0][:-1], self.display)
                 self.display.listbox.lines.insert(item[1][0], text)
-            else:
+            else: # this is just a normal backspace
                 self.display.listbox.focus.insert_text(item[0])
 
         else: # something added so delete!
-            if item[0] == 'enter':
+            if item[0] == 'enter': # undo an enter press
                 self.display.listbox.set_focus(item[1][0]+1)
                 self.display.listbox.combine_previous()
                 return
-
+            # otherwise undo a normal character deletion
             old_text = self.display.listbox.focus.edit_text
             index = int(item[0])
             #self.display.loop.process_input(['backspace'])
@@ -330,6 +336,7 @@ class TextLine(urwid.Edit):
 
     def keypress(self, size, key):
         # this function updates the status bar and implements tab behaviour
+        self.display.update_status()
         if self.display.finding:
             ret = self.display.finder.handle_key(key)
             return
@@ -400,7 +407,7 @@ class TextList(urwid.ListBox):
 
     def delete_tab(self, fname):
         files = self.display.file_names
-        # make sure there are more than one files open
+        # make sure there is more than one file open
         if len(files) > 1:
             index = files.index(fname)
             if index < len(files)-1: # if not last in list
@@ -524,7 +531,6 @@ class TextList(urwid.ListBox):
             return
         self.focus.set_edit_text(self.focus.text + below.text)
         del self.lines[self.focus_position+1]
-        #self.set_focus(self.focus_position+1)
 
     def split_focus(self, index):
         # split the current line at the cursor position (when enter is pressed)
@@ -615,6 +621,7 @@ class TextList(urwid.ListBox):
         elif key == self.config['save']:
             self.save_file()
 
+        self.display.update_status()
         return ret
 
 class MainGUI(object):
@@ -630,6 +637,7 @@ class MainGUI(object):
         self.tabs = []
 
         self.finding = False
+        self.show_term = False
 
         self.state = ''
 
@@ -662,8 +670,6 @@ class MainGUI(object):
         self.finder = FindField(self)
         self.fedit = urwid.AttrMap(self.finder, 'footer')
 
-        self.undostack = UndoStack(self)
-
         # openfile state GUI
         self.new_files = []
         self.openfile_top = urwid.Text(self.openfile_stext)
@@ -679,17 +685,25 @@ class MainGUI(object):
         self.top = urwid.Frame(self.listbox, header=self.status, footer=self.foot_col)
         self.state = 'editor'
 
+        self.term = urwid.Terminal(None)
+        self.termbox = urwid.LineBox(self.term)
+
+        self.pile = urwid.Pile([self.top])
         self.open_tabs()
+
+        if len(self.tabs) == 0:
+            self.listbox.populate("resources/start_up.txt")
 
     def display(self):
         # this method starts the main loop and such
-        self.loop = urwid.MainLoop(self.top,
+        self.loop = urwid.MainLoop(self.pile,
             self.palette, handle_mouse = False,
             unhandled_input = self.keypress)
         self.loop.screen.set_terminal_properties(colors=256)
         self.register_palette()
         self.update_status()
 
+        self.term.main_loop = self.loop
         self.loop.run()
 
         with open('resources/tabs.dat', 'a') as f:
@@ -706,18 +720,18 @@ class MainGUI(object):
 
     def update_status(self):
         # this method is runs to update the top bar depending on the current state
-        col, row = self.loop.screen.get_cols_rows()
+        col, _ = self.loop.screen.get_cols_rows()
 
         if self.state == 'editor':
             # if in this state the bar should have SCUM, help directions, file name, and line, column
             status_bar = self.stext[1]
-            coords = self.listbox.get_cursor_coords((200, len(self.listbox.lines)))
             position = [0, 0]
-            if coords:
-                position = coords
+            if self.listbox.lines:
+                position = self.listbox.get_cursor_coords((200, len(self.listbox.lines)))
             info = '{0}   line:{1[1]} col:{1[0]}'.format(str(self.listbox.short_name), position)
             status_bar[-1] = '{0:>{1}}'.format(info, col-len(self.tbar_text))
             self.tbar.set_text(status_bar)
+            return
 
         elif self.state == 'openfile':
             # if in this state it should have directions to open a file
@@ -744,6 +758,15 @@ class MainGUI(object):
             self.ofbbar.set_text('')
 
         self.state = state
+
+    def toggle_term(self):
+        self.show_term = not self.show_term
+        if self.show_term:
+            self.pile.contents.append((self.termbox, self.pile.options()))
+            self.pile.focus_position = 1
+            self.term.main_loop = self.loop
+        else:
+            self.pile.contents.pop(-1)
 
     def toggle_layout(self):
         self.layout = not self.layout
@@ -778,13 +801,16 @@ class MainGUI(object):
         # this method handles any keypresses that are unhandled by other widgets
         foc = self.top.focus_position
         self.update_status()
-        # this conditionals will only be run if other widgets didnt handle them already, if right
+        if k == 'window resize':
+            self.update_status()
+            print("WOOOO")
+        # these conditionals will only be run if other widgets didnt handle them already, if right
         # or left keypresses go unhandled we know we are at the beginning or end of a line
-        if k == 'left':
+        elif k == 'left':
             self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(len(self.listbox.focus.edit_text))
 
-        elif k == 'right':
+        elif k == 'right' and self.state != 'openfile':
             self.loop.process_input(['down'])
             self.listbox.focus.set_edit_pos(0)
 
@@ -812,13 +838,14 @@ class MainGUI(object):
             self.loop.screen.register_palette(self.palette)
             self.loop.screen.clear() # redraw the screen
 
-        elif k == 'ctrl d':
+        elif k == self.config['delline']:
             self.ustacks[self.listbox.fname].log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
             self.listbox.del_line()
 
         elif k == 'ctrl l':
             self.toggle_layout()
-
+        elif k == 'ctrl g':
+            self.toggle_term()
         elif k == self.config['open']:
             self.new_files = []
             self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(self.cwd, self)))
@@ -842,9 +869,8 @@ class MainGUI(object):
         elif k == self.config['find']:
             self.finding = True
             self.top.contents['footer'] = (self.fedit, None)
-        elif k == 'ctrl q':
+        elif k == self.config['undo']:
             self.ustacks[self.listbox.fname].undo()
-
         elif k == 'ctrl x':
             # get outta here!
             raise urwid.ExitMainLoop()

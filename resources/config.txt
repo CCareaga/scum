@@ -17,6 +17,9 @@
 # Key-bindings
 open:ctrl o
 save:ctrl s
+find:ctrl f
+undo:ctrl q
+delline:ctrl d
 nexttab:meta tab
 closetab:ctrl w
 exit:ctrl x

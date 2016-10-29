@@ -15,6 +15,7 @@ and was a wonderful learning experience. Enjoy! (at your own risk)
 ------------
   - Syntax-highlighting
   - Multiple Tabs
+  - Undo and find functions
   - Open and save files (complete with text-based file-browser)
   - Fully customizable
   - On-the-go configuration changing
@@ -36,9 +37,13 @@ and was a wonderful learning experience. Enjoy! (at your own risk)
 | Key:    | Command:              |
 | ------- |:---------------------:|
 | Ctrl+O  | Open file(s)          |
-| Ctrl+D  | Save file             |
+| Ctrl+S  | Save file             |
 | Ctrl+W  | Close current tab     |
 | Alt+Tab | Move to the next tab  |
 | Ctrl+E  | Edit the config file  |
 | Ctrl+T  | Run config file       |
+| Ctrl+F  | Find                  |
+| Ctrl+Q  | Undo last action      |
+| Ctrl+D  | Delete current line   |
 | Ctrl+X  | Exit                  |
+

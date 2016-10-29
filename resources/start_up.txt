@@ -30,7 +30,10 @@
 DEFAULT KEY BINDINGS:
 
 Ctrl+o to open a file(s).
-Ctrl+f to save current file.
+Ctrl+s to save current file.
+Ctrl+f to find a occurences of a string
+Crtl+d to delete current line
+Ctrl+q to undo last action
 Ctrl+w to close the current tab.
 Alt+Tab to move to the next tab.
 Ctrl+e to open config file.
