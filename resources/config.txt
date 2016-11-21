@@ -22,6 +22,7 @@ undo:ctrl q
 delline:ctrl d
 nexttab:meta tab
 closetab:ctrl w
+terminal:ctrl g
 exit:ctrl x
 
 # syntax style

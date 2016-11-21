@@ -4,6 +4,7 @@ import re
 import signal
 import string
 from modules import DirectoryNode
+from modules import ToggleTerm
 
 import pygments.util
 from pygments.lexers import guess_lexer_for_filename, get_lexer_for_filename
@@ -102,6 +103,7 @@ CONFIG = {
         'delline':'ctrl d',
         'nexttab':'alt tab',
         'closetab':'ctrl w',
+        'terminal':'ctrl g',
         'exit':'ctrl x'
     }
 
@@ -139,6 +141,10 @@ def strip_fname(fname):
     # This function gets only the name of the file, without the path
     peices = fname.split("/")
     return peices[-1]
+
+def strip_path(fname):
+    peices = os.path.abspath(fname).split("/")
+    return "/".join(peices[0:-1])
 
 def rgb_to_short(rgb, mapping):
     """Find the closest xterm-256 approximation to the given RGB value."""
@@ -342,7 +348,7 @@ class TextLine(urwid.Edit):
             return
 
         ret = super().keypress(size, key)
-        self.display.update_status()
+        #self.display.update_status()
         if key == "left" or key == "right":
             self.display.update_status()
         elif key == 'tab':
@@ -369,6 +375,15 @@ class TextList(urwid.ListBox):
         # The same Textlist is used for each tab but when tabs are switched the
         # contents of the tab are grabbed from a dictionary in the main class
         if fname not in self.display.file_names:
+            # grab the lines from the file and strip the newline char
+            # then iterate through and create a new TextLine object for each line
+            try:
+                with open(fname) as f:
+                    content = [x.strip('\n') for x in f.readlines()]
+            except:
+                self.redraw_tabs()
+                return
+
             self.display.cursors[fname] = (0, 0)
             # the short name is the file name without a path
             self.short_name = strip_fname(fname)
@@ -376,9 +391,6 @@ class TextList(urwid.ListBox):
             new_lines = []
             # grab the lines from the file and strip the newline char
             # Then iterate through and create a new TextLine object for each line
-            with open(fname) as f:
-                content = [x.strip('\n') for x in f.readlines()]
-
             for line in content:
                 text = TextLine(line, self.display)
                 #text.set_caption(str(count))
@@ -397,7 +409,11 @@ class TextList(urwid.ListBox):
             self.display.tabs.append(attrib)
             # switch to the new tab
             self.switch_tabs(fname)
-        # this is done to ensure that the bottom bar is re-drawn after opening files
+
+        self.redraw_tabs()
+
+    def redraw_tabs(self):
+         # this is done to ensure that the bottom bar is re-drawn after opening files
         foot_col = urwid.Columns(self.display.tabs)
         foot = urwid.AttrMap(foot_col, 'footer')
         if self.display.layout:
@@ -426,7 +442,7 @@ class TextList(urwid.ListBox):
             else:
                 self.display.top.contents['footer'] = (foot, None)
             self.switch_tabs(new_name)
-            self.display.update_status()
+            #self.display.update_status()
 
     def get_lexer(self):
         # this function gets the lexer depending on the files name
@@ -581,7 +597,8 @@ class TextList(urwid.ListBox):
             self.display.ustacks[self.fname].log(dkey, [self.focus_position, self.focus.edit_pos], 1)
 
         elif key == 'down' or key == 'up':
-            self.display.update_status()
+            #self.display.update_status()
+            pass
 
         elif key == 'enter':
             self.display.ustacks[self.fname].log('enter', [self.focus_position, self.focus.edit_pos], 0)
@@ -621,7 +638,7 @@ class TextList(urwid.ListBox):
         elif key == self.config['save']:
             self.save_file()
 
-        self.display.update_status()
+        #self.display.update_status()
         return ret
 
 class MainGUI(object):
@@ -685,7 +702,7 @@ class MainGUI(object):
         self.top = urwid.Frame(self.listbox, header=self.status, footer=self.foot_col)
         self.state = 'editor'
 
-        self.term = urwid.Terminal(None)
+        self.term = ToggleTerm(self)
         self.termbox = urwid.LineBox(self.term)
 
         self.pile = urwid.Pile([self.top])
@@ -752,6 +769,8 @@ class MainGUI(object):
                 self.top.contents['header'] = (self.foot_col, None)
 
         elif state == 'openfile':
+            path = strip_path(self.listbox.fname)
+            self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(path, self)))
             self.top.contents['header'] = (self.oftbar, None)
             self.top.contents['body'] = (self.browser, None)
             self.top.contents['footer'] = (self.ofbbar, None)
@@ -762,7 +781,9 @@ class MainGUI(object):
     def toggle_term(self):
         self.show_term = not self.show_term
         if self.show_term:
-            self.pile.contents.append((self.termbox, self.pile.options()))
+            cols, rows = self.loop.screen.get_cols_rows()
+            height = min(25, rows/2)
+            self.pile.contents.append((self.termbox, self.pile.options(height_type='given', height_amount=height)))
             self.pile.focus_position = 1
             self.term.main_loop = self.loop
         else:
@@ -800,7 +821,7 @@ class MainGUI(object):
     def keypress(self, k):
         # this method handles any keypresses that are unhandled by other widgets
         foc = self.top.focus_position
-        self.update_status()
+        #self.update_status()
         if k == 'window resize':
             self.update_status()
             print("WOOOO")
@@ -832,6 +853,7 @@ class MainGUI(object):
         elif k == 'ctrl e':
             self.listbox.populate('resources/config.txt')
             self.update_status()
+
         # this keypress saves the changes of the config file and updates everything
         elif k == 'ctrl t':
             self.configure()
@@ -842,10 +864,15 @@ class MainGUI(object):
             self.ustacks[self.listbox.fname].log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
             self.listbox.del_line()
 
+        elif k == 'ctrl f left':
+            self.listbox.focus.set_edit_text("asd  ")
+
         elif k == 'ctrl l':
             self.toggle_layout()
-        elif k == 'ctrl g':
+
+        elif k == self.config['terminal']:
             self.toggle_term()
+
         elif k == self.config['open']:
             self.new_files = []
             self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(self.cwd, self)))
@@ -854,6 +881,7 @@ class MainGUI(object):
         # this keypress only registers when enter is pressed in the open file state, otherwise the
         # editor would have handled it. This means we need to open the selected files if there are any
         # and set the state back to editor mode
+
         elif k == 'enter':
             if self.state == 'openfile':
                 self.switch_states('editor')
@@ -869,11 +897,14 @@ class MainGUI(object):
         elif k == self.config['find']:
             self.finding = True
             self.top.contents['footer'] = (self.fedit, None)
+
         elif k == self.config['undo']:
             self.ustacks[self.listbox.fname].undo()
+
         elif k == 'ctrl x':
             # get outta here!
             raise urwid.ExitMainLoop()
+
         # user needs help... so give them this help file I guess.
         elif k == 'esc':
             self.listbox.populate('resources/help.txt')

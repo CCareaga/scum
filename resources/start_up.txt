@@ -38,3 +38,4 @@ Ctrl+w to close the current tab.
 Alt+Tab to move to the next tab.
 Ctrl+e to open config file.
 Ctrl+t to update configuration.
+Ctrl+g to open/close the terminal.
