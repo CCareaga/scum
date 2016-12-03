@@ -3,8 +3,7 @@ import os
 import re
 import signal
 import string
-from modules import DirectoryNode
-from modules import ToggleTerm
+from modules import *
 
 import pygments.util
 from pygments.lexers import guess_lexer_for_filename, get_lexer_for_filename
@@ -340,9 +339,15 @@ class TextLine(urwid.Edit):
 
         return etext, self.attribs
 
+    def get_tabsize(self, pos):
+        mod = pos % self.tab
+        size = self.tab - mod
+        if size == 0:
+            return self.tab
+        return size
+
     def keypress(self, size, key):
         # this function updates the status bar and implements tab behaviour
-        self.display.update_status()
         if self.display.finding:
             ret = self.display.finder.handle_key(key)
             return
@@ -354,9 +359,10 @@ class TextLine(urwid.Edit):
         elif key == 'tab':
             lb = self.display.listbox
             pos = lb.focus.edit_pos
-            for i in range(1, 5):
+            tabsize = self.get_tabsize(pos)
+            for i in range(1, tabsize+1):
                 self.display.ustacks[self.display.listbox.fname].log(pos+i, [lb.focus_position, lb.focus.edit_pos], 0)
-            self.insert_text(' ' * self.tab)
+            self.insert_text(' ' * tabsize)
 
         return ret
 
@@ -393,8 +399,6 @@ class TextList(urwid.ListBox):
             # Then iterate through and create a new TextLine object for each line
             for line in content:
                 text = TextLine(line, self.display)
-                #text.set_caption(str(count))
-                #count += 1
                 new_lines.append(text)
             # if the file is empty then add one empty line so it can be displayed
             if len(new_lines) < 1:
@@ -607,6 +611,11 @@ class TextList(urwid.ListBox):
         elif key == "ctrl right" or key == "meta right":
             line = self.focus
             xpos = line.edit_pos
+            if xpos == len(line.edit_text) and self.focus_position != len(self.lines)-1:
+                self.set_focus(self.focus_position+1)
+                line.set_edit_pos(0)
+                return
+
             re_word = RE_WORD if key == "ctrl right" else RE_NOT_WORD
             m = re_word.search(line.edit_text or "", xpos)
             word_pos = len(line.edit_text) if m is None else m.end()
@@ -615,10 +624,23 @@ class TextList(urwid.ListBox):
         elif key == "ctrl left" or key == "meta left":
             line = self.focus
             xpos = line.edit_pos
+            if xpos == 0 and self.focus_position != 0:
+                self.set_focus(self.focus_position-1)
+                line.set_edit_pos(len(line.edit_text))
+                return
             re_word = RE_WORD if key == "ctrl left" else RE_NOT_WORD
             starts = [m.start() for m in re_word.finditer(line.edit_text or "", 0, xpos)]
             word_pos = 0 if len(starts) == 0 else starts[-1]
             line.set_edit_pos(word_pos)
+
+        elif key == "ctrl backspace":
+            line = self.focus
+            xpos = line.edit_pos
+
+            starts = [m.start() for m in RE_WORD.finditer(line.edit_text or "", 0, xpos)]
+            word_pos = 0 if len(starts) == 0 else starts[-1]
+            line.set_edit_text(line.edit_text[word_pos:xpos])
+            print("FUC")
 
         # this elif moves to the next tab and if user is on the last tab goes to the frst
         elif key == self.config['nexttab']:
@@ -714,8 +736,10 @@ class MainGUI(object):
     def display(self):
         # this method starts the main loop and such
         self.loop = urwid.MainLoop(self.pile,
-            self.palette, handle_mouse = False,
-            unhandled_input = self.keypress)
+                                   self.palette,
+                                   handle_mouse = False,
+                                   unhandled_input = self.keypress,
+                                   pop_ups = True)
         self.loop.screen.set_terminal_properties(colors=256)
         self.register_palette()
         self.update_status()

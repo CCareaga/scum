@@ -1,0 +1,25 @@
+- new file creation:
+        need a file browser that selects directories rather than files
+        then prompt the user for a name for the file, create it and open it
+
+- ctrl + arrow keys needs improvement, it doesn't seem quite right.
+
+- make tabsize customizable
+
+- when user presses enter, a new line should start at the current indentation level
+
+- somehow making tab a single character (\t) that can be backspaced
+
+- fix finding to make it easier to use and more straight forward, then add replace
+    - when the user presses ctrl+f, they can type in a new search string. when
+      they press enter the search string will be saved.
+    - then the user can move to the next/previous instance of this search string
+      by pressing a hot key (not sure what key)
+    - once this is done, I should add a replace that works the same way except it replaces
+      the next instance of the search string
+
+- auto-complete
+    - I believe this is do-able, I could use an urwid pop-up with a small listbox of suggestions
+
+- add line numbers, coudl be done with a seperate listbox next to the main text listbox
+    - could be turned on and off by hotkey
