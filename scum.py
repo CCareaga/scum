@@ -261,6 +261,7 @@ class FindField(urwid.Edit):
         self.display.top.set_focus('body')
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
+        self.display.update_line_numbers()
 
     def handle_key(self, key):
         # this is where all the keypress for the find bar happen, I don't use the keypress method
@@ -289,6 +290,7 @@ class FindField(urwid.Edit):
 
             self.display.listbox.set_focus(self.line)
             self.display.finding = False
+            #self.display.update_line_numbers()
             return
 
         if key == 'right': # go to the next occurence of the search string
@@ -316,6 +318,7 @@ class FindField(urwid.Edit):
 
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
+        self.display.update_line_numbers()
 
 class TextLine(urwid.Edit):
     def __init__(self, text, display, tabsize=4, **kwargs):
@@ -353,18 +356,44 @@ class TextLine(urwid.Edit):
             return
 
         ret = super().keypress(size, key)
-        #self.display.update_status()
+        if key != 'down' or key != 'up':
+            self.display.update_status()
+
         if key == "left" or key == "right":
             self.display.update_status()
-        elif key == 'tab':
+
+        if key == 'tab':
             lb = self.display.listbox
             pos = lb.focus.edit_pos
             tabsize = self.get_tabsize(pos)
             for i in range(1, tabsize+1):
                 self.display.ustacks[self.display.listbox.fname].log(pos+i, [lb.focus_position, lb.focus.edit_pos], 0)
             self.insert_text(' ' * tabsize)
+            self.display.update_status()
 
         return ret
+
+class LineNumbers(urwid.ListBox):
+    def __init__(self, display):
+        self.display = display
+        self.numbers = []
+        super().__init__(self.numbers)
+        self._selectable = False
+        self.width = 1
+
+    def populate(self, lines):
+        for i in range(0, len(lines)):
+            number = urwid.Edit(str(i)+'| ', align='right')
+            self.numbers.append(urwid.AttrMap(number, 'body', focus_map='key'))
+
+    def add(self):
+        self.numbers.append(urwid.Edit(str(len(self.numbers)) + '| ', align='right'))
+        if len(str(self.numbers[-1])) > self.width:
+            self.width += 1
+            self.display.body_col = urwid.Columns([(self.width, self.display.line_nums), self.display.listbox])
+
+    def sub(self):
+        self.numbers.pop(-1)
 
 class TextList(urwid.ListBox):
     def __init__(self, display):
@@ -407,6 +436,7 @@ class TextList(urwid.ListBox):
             # create a new tab (button widget) with the correct attributes
             self.display.file_dict[fname] = new_lines
             self.display.ustacks[fname] = UndoStack(self.display)
+            self.display.line_nums.populate(new_lines)
             button = urwid.Button(self.short_name)
             button._label.align = 'center'
             attrib = urwid.AttrMap(button, 'footer')
@@ -493,14 +523,15 @@ class TextList(urwid.ListBox):
             return
 
     def do_enter(self):
-        #lead = self.get_leading()
+        lead = self.get_leading()
         self.split_focus(self.focus_position)
+        #text = self.focus.edit_text.strip()
         self.display.loop.process_input(['down'])
         self.display.update_status()
-
-        #if self.focus.edit_text.strip() == "":
-            #self.focus.set_edit_pos(lead)
-            #self.focus.set_edit_text(str(lead) + self.focus.edit_text)
+        self.display.line_nums.add()
+        #if text != "":
+        #   self.focus.set_edit_pos(lead)
+        #   self.focus.set_edit_text(' ' * lead  + self.focus.edit_text)
 
     def get_leading(self):
         #get the leading whitespace of a line!
@@ -594,15 +625,21 @@ class TextList(urwid.ListBox):
             pos = self.focus.edit_pos
             self.display.ustacks[self.fname].log(pos, [self.focus_position, self.focus.edit_pos], 0)
 
+        if key == 'down' or key == 'up':
+            self.display.update_status()
+            # we need to set the correct coming_from attribute or the line numbers won't
+            # scroll correctly
+            if key == 'down':
+                cfrom = 'above'
+            else:
+                cfrom = 'below'
+            self.display.line_nums.set_focus(self.focus_position, coming_from=cfrom)
+
         elif key == 'backspace':
             self.display.ustacks[self.fname].log(bkey, [self.focus_position, self.focus.edit_pos], 1)
 
         elif key == 'delete':
             self.display.ustacks[self.fname].log(dkey, [self.focus_position, self.focus.edit_pos], 1)
-
-        elif key == 'down' or key == 'up':
-            #self.display.update_status()
-            pass
 
         elif key == 'enter':
             self.display.ustacks[self.fname].log('enter', [self.focus_position, self.focus.edit_pos], 0)
@@ -640,7 +677,6 @@ class TextList(urwid.ListBox):
             starts = [m.start() for m in RE_WORD.finditer(line.edit_text or "", 0, xpos)]
             word_pos = 0 if len(starts) == 0 else starts[-1]
             line.set_edit_text(line.edit_text[word_pos:xpos])
-            print("FUC")
 
         # this elif moves to the next tab and if user is on the last tab goes to the frst
         elif key == self.config['nexttab']:
@@ -666,7 +702,7 @@ class TextList(urwid.ListBox):
 class MainGUI(object):
     def __init__(self):
         # set up all the empty lists, dicts and strings needed
-        # also crea the widgets that will be used later
+        # also create the widgets that will be used later
         self.cwd = os.getcwd()
         self.file_dict = {}
         self.ustacks = {}
@@ -679,6 +715,7 @@ class MainGUI(object):
         self.show_term = False
 
         self.state = ''
+        self.rows = 0
 
         # this variable represents the UI layout. if this value is False
         # then the tabs are on bottom and status is on top. when this value
@@ -703,6 +740,10 @@ class MainGUI(object):
         self.listbox = TextList(self)
         urwid.AttrMap(self.listbox, 'body')
 
+        self.line_nums = LineNumbers(self)
+        lns = urwid.AttrMap(self.line_nums, 'body')
+        self.body_col = urwid.Columns([(4, lns), self.listbox], focus_column=1)
+
         self.foot_col = urwid.Columns(self.tabs)
         self.foot = urwid.AttrMap(self.foot_col, 'footer')
 
@@ -721,7 +762,7 @@ class MainGUI(object):
         self.openfile_bottom = urwid.Text(' ')
         self.ofbbar = urwid.AttrWrap(self.openfile_bottom, 'footer')
 
-        self.top = urwid.Frame(self.listbox, header=self.status, footer=self.foot_col)
+        self.top = urwid.Frame(self.body_col, header=self.status, footer=self.foot_col)
         self.state = 'editor'
 
         self.term = ToggleTerm(self)
@@ -761,7 +802,7 @@ class MainGUI(object):
 
     def update_status(self):
         # this method is runs to update the top bar depending on the current state
-        col, _ = self.loop.screen.get_cols_rows()
+        col, self.rows = self.loop.screen.get_cols_rows()
 
         if self.state == 'editor':
             # if in this state the bar should have SCUM, help directions, file name, and line, column
@@ -781,6 +822,9 @@ class MainGUI(object):
                 selected += strip_fname(f) + ' | '
             extra = col - len(selected) - 1
             self.ofbbar.set_text(selected)
+
+    def update_line_numbers(self, cfrom=None):
+        self.line_nums.set_focus(self.listbox.focus_position, coming_from=cfrom)
 
     def switch_states(self, state):
         # this method is run to switch states, it reassigns what content is in the Frame
@@ -845,13 +889,10 @@ class MainGUI(object):
     def keypress(self, k):
         # this method handles any keypresses that are unhandled by other widgets
         foc = self.top.focus_position
-        #self.update_status()
-        if k == 'window resize':
-            self.update_status()
-            print("WOOOO")
+
         # these conditionals will only be run if other widgets didnt handle them already, if right
         # or left keypresses go unhandled we know we are at the beginning or end of a line
-        elif k == 'left':
+        if k == 'left':
             self.loop.process_input(['up'])
             self.listbox.focus.set_edit_pos(len(self.listbox.focus.edit_text))
 
@@ -864,6 +905,8 @@ class MainGUI(object):
             # current text line with the one prior. This function
             # returns the length of the previous line. We have to wait to set the edit_pos
             # because self.loop.process_input changes the edit_pos
+            if self.listbox.focus_position != 0:
+                self.line_nums.sub()
             self.listbox.combine_previous()
             self.ustacks[self.listbox.fname].log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
             self.update_status()
@@ -886,6 +929,7 @@ class MainGUI(object):
 
         elif k == self.config['delline']:
             self.ustacks[self.listbox.fname].log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
+            self.line_nums.sub()
             self.listbox.del_line()
 
         elif k == 'ctrl f left':
