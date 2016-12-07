@@ -103,6 +103,7 @@ CONFIG = {
         'nexttab':'alt tab',
         'closetab':'ctrl w',
         'terminal':'ctrl g',
+        'linenum':'ctrl l',
         'exit':'ctrl x'
     }
 
@@ -168,6 +169,22 @@ def rgb_to_short(rgb, mapping):
     res = ''.join([ ('%02.x' % i) for i in res ])
     equiv = mapping[res]
     return equiv, res
+
+# since this is a multi-tab editor, there are a lot of peices of info that need to be stored for each tab
+# instead of keeping a bunch of dicts to key the data we need, we can just have one dict and key up an
+# object that has all the data we need
+#
+# DATA:
+#       file content
+#       cursor pos
+#       undo stack
+#
+class TabInfo(object):
+    def __init__(self, display):
+        self.display = display
+        self.lines = []
+        self.cursor = [0, 0]
+        self.undo = UndoStack(self.display)
 
 class UndoStack(object):
     def __init__(self, display):
@@ -356,20 +373,15 @@ class TextLine(urwid.Edit):
             return
 
         ret = super().keypress(size, key)
-        if key != 'down' or key != 'up':
-            self.display.update_status()
-
-        if key == "left" or key == "right":
-            self.display.update_status()
 
         if key == 'tab':
             lb = self.display.listbox
             pos = lb.focus.edit_pos
             tabsize = self.get_tabsize(pos)
             for i in range(1, tabsize+1):
-                self.display.ustacks[self.display.listbox.fname].log(pos+i, [lb.focus_position, lb.focus.edit_pos], 0)
+                cur_tab = self.display.tab_info[self.display.listbox.fname]
+                cur_tab.undo.log(pos+i, [lb.focus_position, lb.focus.edit_pos], 0)
             self.insert_text(' ' * tabsize)
-            self.display.update_status()
 
         return ret
 
@@ -383,14 +395,14 @@ class LineNumbers(urwid.ListBox):
 
     def populate(self, lines):
         for i in range(0, len(lines)):
-            number = urwid.Edit(str(i)+'| ', align='right')
-            self.numbers.append(urwid.AttrMap(number, 'body', focus_map='key'))
+            self.add()
 
     def add(self):
         self.numbers.append(urwid.Edit(str(len(self.numbers)) + '| ', align='right'))
-        if len(str(self.numbers[-1])) > self.width:
+        if len(str(len(self.numbers)-1)) > self.width:
             self.width += 1
-            self.display.body_col = urwid.Columns([(self.width, self.display.line_nums), self.display.listbox])
+            new_col = urwid.Columns([(self.width+2, self.display.line_nums), self.display.listbox], focus_column=1)
+            self.display.top.contents['body'] = (new_col, None)
 
     def sub(self):
         self.numbers.pop(-1)
@@ -419,23 +431,29 @@ class TextList(urwid.ListBox):
                 self.redraw_tabs()
                 return
 
-            self.display.cursors[fname] = (0, 0)
             # the short name is the file name without a path
             self.short_name = strip_fname(fname)
             self.display.file_names.append(fname)
             new_lines = []
+
             # grab the lines from the file and strip the newline char
             # Then iterate through and create a new TextLine object for each line
             for line in content:
                 text = TextLine(line, self.display)
                 new_lines.append(text)
+
             # if the file is empty then add one empty line so it can be displayed
             if len(new_lines) < 1:
                 text = TextLine(' ', self.display)
                 new_lines.append(text)
+
             # create a new tab (button widget) with the correct attributes
-            self.display.file_dict[fname] = new_lines
-            self.display.ustacks[fname] = UndoStack(self.display)
+            self.display.tab_info[fname] = TabInfo(self.display)
+            new_tab_info = self.display.tab_info[fname]
+            new_tab_info.lines = new_lines
+            new_tab_info.undo = UndoStack(self.display)
+            new_tab_info.cursor = (0, 0)
+
             self.display.line_nums.populate(new_lines)
             button = urwid.Button(self.short_name)
             button._label.align = 'center'
@@ -465,7 +483,7 @@ class TextList(urwid.ListBox):
             else: # if last file in list
                 new_name = files[index-1]
             # delete file and contents from master lists
-            self.display.file_dict[fname] = []
+            #del self.display.tab_info[fname]
             del files[index]
             del self.display.tabs[index]
             # reset the footer with new tab amount
@@ -476,7 +494,7 @@ class TextList(urwid.ListBox):
             else:
                 self.display.top.contents['footer'] = (foot, None)
             self.switch_tabs(new_name)
-            #self.display.update_status()
+            del self.display.tab_info[fname]
 
     def get_lexer(self):
         # this function gets the lexer depending on the files name
@@ -492,16 +510,21 @@ class TextList(urwid.ListBox):
     def switch_tabs(self, fname):
         # this method switches to a tab according to the provided filename
         if self.fname != fname: # make sure we aren't already on this tab
-            try:
-                line = self.focus_position
-                col = self.focus.edit_pos
-                self.display.cursors[self.fname] = (line, col)
-            except:
-                self.display.cursors[self.fname] = (0, 0)
+            cur_tab_info = self.display.cur_tab
+            if self.fname != ' ':
+                cur_tab_info = self.display.tab_info[self.fname]
+                cur_tab_info.lines[:] = self.lines
+            #cur_tab_info = self.display.tab_info[fname]
+                try:
+                    line = self.focus_position
+                    col = self.focus.edit_pos
+                    cur_tab_info.cursor = (line, col)
+                except:
+                    cur_tab_info.cursor = (0, 0)
             index = self.display.file_names.index(fname)
             tabs = self.display.tabs
             if self.fname != ' ': #hopefully ensures all lines are saved when switching tabs
-                self.display.file_dict[self.fname][:] = self.lines
+                cur_tab_info.lines[:] = self.lines
             # change tab colors depending on current index
             for i in range(0, len(tabs)):
                 if i != index:
@@ -510,13 +533,14 @@ class TextList(urwid.ListBox):
                     tabs[i].set_attr_map({None:'selected'})
             # re-assign the current path and filename
             self.fname = fname
+            new_tab_info = self.display.tab_info[self.fname]
             self.short_name = strip_fname(fname)
             # repopulate the lines list from the line dict in the main class
-            self.lines[:] = self.display.file_dict[fname]
+            self.lines[:] = new_tab_info.lines
             self.display.top.set_focus('body')
             self.lexer = self.get_lexer()
-            self.set_focus(self.display.cursors[self.fname][0])
-            self.focus.set_edit_pos(self.display.cursors[self.fname][1])
+            self.set_focus(new_tab_info.cursor[0])
+            self.focus.set_edit_pos(new_tab_info.cursor[1])
         else:
             # not really needed since no mouse support :/
             self.display.top.set_focus('body')
@@ -527,7 +551,6 @@ class TextList(urwid.ListBox):
         self.split_focus(self.focus_position)
         #text = self.focus.edit_text.strip()
         self.display.loop.process_input(['down'])
-        self.display.update_status()
         self.display.line_nums.add()
         #if text != "":
         #   self.focus.set_edit_pos(lead)
@@ -608,6 +631,7 @@ class TextList(urwid.ListBox):
     def keypress(self, size, key):
         # this function implements all the keypress behaviour of the text editor window
         # some of the keypress strings are grabbed from the config becuase they are customizable
+        cur_tab = self.display.tab_info[self.fname]
         bkey, dkey = '', ''
         pos = 0
         if self.lines != []:
@@ -623,10 +647,9 @@ class TextList(urwid.ListBox):
 
         if key in string.printable:
             pos = self.focus.edit_pos
-            self.display.ustacks[self.fname].log(pos, [self.focus_position, self.focus.edit_pos], 0)
+            cur_tab.undo.log(pos, [self.focus_position, self.focus.edit_pos], 0)
 
         if key == 'down' or key == 'up':
-            self.display.update_status()
             # we need to set the correct coming_from attribute or the line numbers won't
             # scroll correctly
             if key == 'down':
@@ -636,13 +659,13 @@ class TextList(urwid.ListBox):
             self.display.line_nums.set_focus(self.focus_position, coming_from=cfrom)
 
         elif key == 'backspace':
-            self.display.ustacks[self.fname].log(bkey, [self.focus_position, self.focus.edit_pos], 1)
+            cur_tab.undo.log(bkey, [self.focus_position, self.focus.edit_pos], 1)
 
         elif key == 'delete':
-            self.display.ustacks[self.fname].log(dkey, [self.focus_position, self.focus.edit_pos], 1)
+            cur_tab.undo.log(dkey, [self.focus_position, self.focus.edit_pos], 1)
 
         elif key == 'enter':
-            self.display.ustacks[self.fname].log('enter', [self.focus_position, self.focus.edit_pos], 0)
+            cur_tab.undo.log('enter', [self.focus_position, self.focus.edit_pos], 0)
             self.do_enter()
         # the next two conditionals use regex to create the Ctrl+arrow behaviour
         elif key == "ctrl right" or key == "meta right":
@@ -687,6 +710,7 @@ class TextList(urwid.ListBox):
                 next_index = 0
 
             self.switch_tabs(self.display.file_names[next_index])
+            self.display.cur_tab = self.display.tab_info[self.fname]
 
         # this elif closes the current tab
         elif key == self.config['closetab']:
@@ -696,7 +720,6 @@ class TextList(urwid.ListBox):
         elif key == self.config['save']:
             self.save_file()
 
-        #self.display.update_status()
         return ret
 
 class MainGUI(object):
@@ -704,12 +727,11 @@ class MainGUI(object):
         # set up all the empty lists, dicts and strings needed
         # also create the widgets that will be used later
         self.cwd = os.getcwd()
-        self.file_dict = {}
-        self.ustacks = {}
+        self.tab_info = {}
         self.file_names = []
-        self.cursors = {}
         self.palette = []
         self.tabs = []
+        self.cur_tab = None
 
         self.finding = False
         self.show_term = False
@@ -742,7 +764,7 @@ class MainGUI(object):
 
         self.line_nums = LineNumbers(self)
         lns = urwid.AttrMap(self.line_nums, 'body')
-        self.body_col = urwid.Columns([(4, lns), self.listbox], focus_column=1)
+        self.body_col = urwid.Columns([(3, lns), self.listbox], focus_column=1)
 
         self.foot_col = urwid.Columns(self.tabs)
         self.foot = urwid.AttrMap(self.foot_col, 'footer')
@@ -783,10 +805,12 @@ class MainGUI(object):
                                    pop_ups = True)
         self.loop.screen.set_terminal_properties(colors=256)
         self.register_palette()
-        self.update_status()
 
         self.term.main_loop = self.loop
         self.loop.run()
+
+        for i in self.tab_info:
+            print(i)
 
         with open('resources/tabs.dat', 'a') as f:
             f.write(str(self.layout))
@@ -804,24 +828,12 @@ class MainGUI(object):
         # this method is runs to update the top bar depending on the current state
         col, self.rows = self.loop.screen.get_cols_rows()
 
-        if self.state == 'editor':
-            # if in this state the bar should have SCUM, help directions, file name, and line, column
-            status_bar = self.stext[1]
-            position = [0, 0]
-            if self.listbox.lines:
-                position = self.listbox.get_cursor_coords((200, len(self.listbox.lines)))
-            info = '{0}   line:{1[1]} col:{1[0]}'.format(str(self.listbox.short_name), position)
-            status_bar[-1] = '{0:>{1}}'.format(info, col-len(self.tbar_text))
-            self.tbar.set_text(status_bar)
-            return
 
-        elif self.state == 'openfile':
-            # if in this state it should have directions to open a file
-            selected = ''
-            for f in self.new_files:
-                selected += strip_fname(f) + ' | '
-            extra = col - len(selected) - 1
-            self.ofbbar.set_text(selected)
+        selected = ''
+        for f in self.new_files:
+            selected += strip_fname(f) + ' | '
+        extra = col - len(selected) - 1
+        self.ofbbar.set_text(selected)
 
     def update_line_numbers(self, cfrom=None):
         self.line_nums.set_focus(self.listbox.focus_position, coming_from=cfrom)
@@ -851,15 +863,17 @@ class MainGUI(object):
         if self.show_term:
             cols, rows = self.loop.screen.get_cols_rows()
             height = min(25, rows/2)
-            self.pile.contents.append((self.termbox, self.pile.options(height_type='given', height_amount=height)))
-            self.pile.focus_position = 1
+            pile = self.pile
+            pile.contents.append((self.termbox, pile.options(height_type='given', height_amount=height)))
+            pile.focus_position = 1
             self.term.main_loop = self.loop
         else:
             self.pile.contents.pop(-1)
 
     def toggle_layout(self):
         self.layout = not self.layout
-        self.top.contents['header'], self.top.contents['footer'] = self.top.contents['footer'], self.top.contents['header']
+        content = self.top.contents
+        content['header'], content['footer'] = content['footer'], content['header']
 
     def open_tabs(self):
         # this method reads the saved tabs from the data file and automatically opens the files on start up
@@ -889,7 +903,6 @@ class MainGUI(object):
     def keypress(self, k):
         # this method handles any keypresses that are unhandled by other widgets
         foc = self.top.focus_position
-
         # these conditionals will only be run if other widgets didnt handle them already, if right
         # or left keypresses go unhandled we know we are at the beginning or end of a line
         if k == 'left':
@@ -908,18 +921,15 @@ class MainGUI(object):
             if self.listbox.focus_position != 0:
                 self.line_nums.sub()
             self.listbox.combine_previous()
-            self.ustacks[self.listbox.fname].log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
-            self.update_status()
+            self.cur_tab.undo.log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
 
         elif k == 'delete':
             self.listbox.combine_next()
-            self.ustacks[self.listbox.fname].log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
-            self.update_status()
+            self.cur_tab.undo.log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
 
         # this keypress opens up the configuration file so it can be edited
         elif k == 'ctrl e':
             self.listbox.populate('resources/config.txt')
-            self.update_status()
 
         # this keypress saves the changes of the config file and updates everything
         elif k == 'ctrl t':
@@ -928,12 +938,9 @@ class MainGUI(object):
             self.loop.screen.clear() # redraw the screen
 
         elif k == self.config['delline']:
-            self.ustacks[self.listbox.fname].log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
+            self.cur_tab.undo.log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
             self.line_nums.sub()
             self.listbox.del_line()
-
-        elif k == 'ctrl f left':
-            self.listbox.focus.set_edit_text("asd  ")
 
         elif k == 'ctrl l':
             self.toggle_layout()
@@ -967,7 +974,7 @@ class MainGUI(object):
             self.top.contents['footer'] = (self.fedit, None)
 
         elif k == self.config['undo']:
-            self.ustacks[self.listbox.fname].undo()
+            self.cur_tab.undo.undo()
 
         elif k == 'ctrl x':
             # get outta here!
