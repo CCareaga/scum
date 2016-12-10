@@ -23,7 +23,8 @@ delline:ctrl d
 nexttab:meta tab
 closetab:ctrl w
 terminal:ctrl g
-linenum:ctrl l
+linenum:ctrl n
+layout:f1
 exit:ctrl x
 
 # syntax style

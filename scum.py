@@ -2,6 +2,7 @@ import urwid
 import os
 import re
 import signal
+import signal
 import string
 from modules import *
 
@@ -103,7 +104,8 @@ CONFIG = {
         'nexttab':'alt tab',
         'closetab':'ctrl w',
         'terminal':'ctrl g',
-        'linenum':'ctrl l',
+        'linenum':'ctrl n',
+        'layout':'f1',
         'exit':'ctrl x'
     }
 
@@ -313,6 +315,7 @@ class FindField(urwid.Edit):
         if key == 'right': # go to the next occurence of the search string
             if len(self.edit_text) > 0:
                 self.goto(self.edit_text, (self.line+1, self.index+1))
+                self.display.update_line_numbers(cfrom='above')
 
         if key == 'left': # go to the previous occurence of the search string
             if len(self.history) > 0: # if there is a previous one to go to
@@ -321,6 +324,7 @@ class FindField(urwid.Edit):
                 self.line, self.index = previous[0], previous[1]
                 self.display.listbox.lines[self.line].set_edit_pos(self.index)
                 self.display.listbox.set_focus(self.line)
+                self.display.update_line_numbers(cfrom='below')
             else: # we are at the first occurence so ensure that nothing wonky happens
                 self.on_line = []
                 self.goto(self.edit_text, (0,0))
@@ -394,6 +398,7 @@ class LineNumbers(urwid.ListBox):
         self.width = 1
 
     def populate(self, lines):
+        #self.numbers = []
         for i in range(0, len(lines)):
             self.add()
 
@@ -448,7 +453,7 @@ class TextList(urwid.ListBox):
                 new_lines.append(text)
 
             # create a new tab (button widget) with the correct attributes
-            self.display.tab_info[fname] = TabInfo(self.display)
+            self.display.cur_tab = self.display.tab_info[fname] = TabInfo(self.display)
             new_tab_info = self.display.tab_info[fname]
             new_tab_info.lines = new_lines
             new_tab_info.undo = UndoStack(self.display)
@@ -537,10 +542,12 @@ class TextList(urwid.ListBox):
             self.short_name = strip_fname(fname)
             # repopulate the lines list from the line dict in the main class
             self.lines[:] = new_tab_info.lines
+            self.display.line_nums.populate(self.lines)
             self.display.top.set_focus('body')
             self.lexer = self.get_lexer()
             self.set_focus(new_tab_info.cursor[0])
             self.focus.set_edit_pos(new_tab_info.cursor[1])
+            self.display.update_line_numbers()
         else:
             # not really needed since no mouse support :/
             self.display.top.set_focus('body')
@@ -735,6 +742,7 @@ class MainGUI(object):
 
         self.finding = False
         self.show_term = False
+        self.show_lnums = False
 
         self.state = ''
         self.rows = 0
@@ -809,9 +817,6 @@ class MainGUI(object):
         self.term.main_loop = self.loop
         self.loop.run()
 
-        for i in self.tab_info:
-            print(i)
-
         with open('resources/tabs.dat', 'a') as f:
             f.write(str(self.layout))
 
@@ -828,7 +833,6 @@ class MainGUI(object):
         # this method is runs to update the top bar depending on the current state
         col, self.rows = self.loop.screen.get_cols_rows()
 
-
         selected = ''
         for f in self.new_files:
             selected += strip_fname(f) + ' | '
@@ -842,7 +846,7 @@ class MainGUI(object):
         # this method is run to switch states, it reassigns what content is in the Frame
         if state == 'editor':
             self.top.contents['header'] = (self.status, None)
-            self.top.contents['body'] = (self.listbox, None)
+            self.top.contents['body'] = (self.body_col, None)
             self.top.contents['footer'] = (self.foot_col, None)
             if self.layout:
                 self.top.contents['footer'] = (self.status, None)
@@ -857,6 +861,16 @@ class MainGUI(object):
             self.ofbbar.set_text('')
 
         self.state = state
+
+    def toggle_line_numbers(self):
+        self.show_lnums = not self.show_lnums
+        if self.show_lnums:
+            lns = urwid.AttrWrap(self.line_nums, 'body')
+            self.body_col = urwid.Columns([(lns, 3), self.listbox])
+            self.top.contents['body'] = (self.body_col, None)
+        else:
+            self.body_col.contents.pop(0)
+            print('\n')
 
     def toggle_term(self):
         self.show_term = not self.show_term
@@ -942,8 +956,11 @@ class MainGUI(object):
             self.line_nums.sub()
             self.listbox.del_line()
 
-        elif k == 'ctrl l':
+        elif k == self.config['layout']:
             self.toggle_layout()
+
+        elif k == self.config['linenum']:
+            self.toggle_line_numbers()
 
         elif k == self.config['terminal']:
             self.toggle_term()
@@ -953,6 +970,7 @@ class MainGUI(object):
             self.browser = urwid.TreeListBox(urwid.TreeWalker(DirectoryNode(self.cwd, self)))
             self.browser.offset_rows = 1
             self.switch_states('openfile')
+
         # this keypress only registers when enter is pressed in the open file state, otherwise the
         # editor would have handled it. This means we need to open the selected files if there are any
         # and set the state back to editor mode
