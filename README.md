@@ -20,6 +20,7 @@ and was a wonderful learning experience. Enjoy! (at your own risk)
   - Fully customizable
   - On-the-go configuration changing
   - Tab saving
+  - Togglable line numbers and terminal
 
 ### Dependencies
 ------------
@@ -34,16 +35,18 @@ and was a wonderful learning experience. Enjoy! (at your own risk)
 
 ### Key Bindings
 ------------
-| Key:    | Command:              |
-| ------- |:---------------------:|
-| Ctrl+O  | Open file(s)          |
-| Ctrl+S  | Save file             |
-| Ctrl+W  | Close current tab     |
-| Alt+Tab | Move to the next tab  |
-| Ctrl+E  | Edit the config file  |
-| Ctrl+T  | Run config file       |
-| Ctrl+F  | Find                  |
-| Ctrl+Q  | Undo last action      |
-| Ctrl+D  | Delete current line   |
-| Ctrl+X  | Exit                  |
+| Key:          | Command:              |
+| ------------- |:---------------------:|
+| Ctrl+O        | Open file(s)          |
+| Ctrl+S        | Save file             |
+| Ctrl+W        | Close current tab     |
+| Ctrl+page up  | Move to the next tab  |
+| Ctrl+page down| Move to the prev tab  |
+| F5            | Edit the config file  |
+| F6            | Run config file       |
+| F1            | Change GUI layout     |
+| Ctrl+F        | Find                  |
+| Ctrl+Q        | Undo last action      |
+| Ctrl+D        | Delete current line   |
+| Ctrl+X        | Exit                  |
 

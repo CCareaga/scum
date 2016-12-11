@@ -2,7 +2,6 @@ import urwid
 import os
 import re
 import signal
-import signal
 import string
 from modules import *
 
@@ -101,7 +100,8 @@ CONFIG = {
         'find':'ctrl f',
         'undo':'ctrl q',
         'delline':'ctrl d',
-        'nexttab':'alt tab',
+        'prevtab':'meta page up',
+        'nexttab':'meta page down',
         'closetab':'ctrl w',
         'terminal':'ctrl g',
         'linenum':'ctrl n',
@@ -195,7 +195,7 @@ class UndoStack(object):
 
     def undo(self):
         # this method undoes the last action from the undo stack. This could be a character added, deleted, a line
-        # added, a line combine with the previous or the next. It is pretty ugly becuase there are quite a bit of special
+        # added, a line combined with the previous or the next. It is pretty ugly becuase there are quite a bit of special
         # cases to take into consideration like pressing delete at the end of a line, or backspace at the beginning of
         # a line. It works though!
         if self.items == []:
@@ -277,6 +277,7 @@ class FindField(urwid.Edit):
         if not found:
             self.history.pop(-1)
             return
+
         self.display.top.set_focus('body')
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
@@ -389,26 +390,52 @@ class TextLine(urwid.Edit):
 
         return ret
 
+# the line numbers to the left of the editor window is actually a listbox of its own
+# it is placed next to the main editor listbox in a column container like so:
+# __________________________________
+# |    Urwid Column container      |
+# ----------------------------------
+# |1| text                         |
+# |2| text                         |
+#
+# to simulate scrolling I simply set the focus of the line number list box
+# to the same focus position as the main editor window. Unfortunately the
+# line numbers are copyable so if you try to copy multiple lines they will be
+# copied as well :/ so I made them togglable!
+
 class LineNumbers(urwid.ListBox):
     def __init__(self, display):
         self.display = display
-        self.numbers = []
-        super().__init__(self.numbers)
-        self._selectable = False
-        self.width = 1
+        self.numbers = [] # this is the list the listbox uses
+        super().__init__(self.numbers) # instantiate the parent class with the list
+        self._selectable = False # can't be selectable!
+        self.width = 1 # this tells how wide to make the line num column
 
+    # each time the user switches tabs the line numbers need to be cleared and
+    # repopulated. For some reason this is the way this has to be done...
+    def clear(self):
+        for _ in range(0, len(self.numbers)):
+            self.sub()
+
+    # this populates the line number listbox , it takes a list as an arg,
+    # but it really only needs a length.. it calls clear then
+    # it calls  add a bunch to create the new line num
     def populate(self, lines):
-        #self.numbers = []
+        self.clear()
+        self.width = 1
         for i in range(0, len(lines)):
             self.add()
 
+    # this method is called when a new number needs to be added. if the new number is
+    # a digit longer than the last then the column width is increased!
     def add(self):
-        self.numbers.append(urwid.Edit(str(len(self.numbers)) + '| ', align='right'))
+        self.numbers.append(urwid.Text(str(len(self.numbers)+1) + '| ', align='right'))
         if len(str(len(self.numbers)-1)) > self.width:
             self.width += 1
             new_col = urwid.Columns([(self.width+2, self.display.line_nums), self.display.listbox], focus_column=1)
             self.display.top.contents['body'] = (new_col, None)
 
+    # this method simply deletes a line from the end of the line numbers
     def sub(self):
         self.numbers.pop(-1)
 
@@ -542,7 +569,7 @@ class TextList(urwid.ListBox):
             self.short_name = strip_fname(fname)
             # repopulate the lines list from the line dict in the main class
             self.lines[:] = new_tab_info.lines
-            self.display.line_nums.populate(self.lines)
+            self.display.line_nums.populate(self.lines[:])
             self.display.top.set_focus('body')
             self.lexer = self.get_lexer()
             self.set_focus(new_tab_info.cursor[0])
@@ -656,14 +683,14 @@ class TextList(urwid.ListBox):
             pos = self.focus.edit_pos
             cur_tab.undo.log(pos, [self.focus_position, self.focus.edit_pos], 0)
 
-        if key == 'down' or key == 'up':
+        if key == 'down' or key == 'up' or key == 'page down' or key == 'page up':
             # we need to set the correct coming_from attribute or the line numbers won't
             # scroll correctly
-            if key == 'down':
+            if key == 'down' or key == 'page down':
                 cfrom = 'above'
             else:
                 cfrom = 'below'
-            self.display.line_nums.set_focus(self.focus_position, coming_from=cfrom)
+            self.display.update_line_numbers(cfrom=cfrom)
 
         elif key == 'backspace':
             cur_tab.undo.log(bkey, [self.focus_position, self.focus.edit_pos], 1)
@@ -683,7 +710,7 @@ class TextList(urwid.ListBox):
                 line.set_edit_pos(0)
                 return
 
-            re_word = RE_WORD if key == "ctrl right" else RE_NOT_WORD
+            re_word = RE_WORD
             m = re_word.search(line.edit_text or "", xpos)
             word_pos = len(line.edit_text) if m is None else m.end()
             line.set_edit_pos(word_pos)
@@ -695,7 +722,7 @@ class TextList(urwid.ListBox):
                 self.set_focus(self.focus_position-1)
                 line.set_edit_pos(len(line.edit_text))
                 return
-            re_word = RE_WORD if key == "ctrl left" else RE_NOT_WORD
+            re_word = RE_WORD
             starts = [m.start() for m in re_word.finditer(line.edit_text or "", 0, xpos)]
             word_pos = 0 if len(starts) == 0 else starts[-1]
             line.set_edit_pos(word_pos)
@@ -711,10 +738,20 @@ class TextList(urwid.ListBox):
         # this elif moves to the next tab and if user is on the last tab goes to the frst
         elif key == self.config['nexttab']:
             index = self.display.file_names.index(self.fname)
-            if index+1 < len(self.display.file_names):
-                next_index = index+1
+            if index + 1 < len(self.display.file_names):
+                next_index = index + 1
             else:
                 next_index = 0
+
+            self.switch_tabs(self.display.file_names[next_index])
+            self.display.cur_tab = self.display.tab_info[self.fname]
+
+        elif key == self.config['prevtab']:
+            index = self.display.file_names.index(self.fname)
+            if index - 1 >= 0:
+                next_index = index - 1
+            else:
+                next_index = -1
 
             self.switch_tabs(self.display.file_names[next_index])
             self.display.cur_tab = self.display.tab_info[self.fname]
@@ -942,11 +979,11 @@ class MainGUI(object):
             self.cur_tab.undo.log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
 
         # this keypress opens up the configuration file so it can be edited
-        elif k == 'ctrl e':
+        elif k == 'f5':
             self.listbox.populate('resources/config.txt')
 
         # this keypress saves the changes of the config file and updates everything
-        elif k == 'ctrl t':
+        elif k == 'f6':
             self.configure()
             self.loop.screen.register_palette(self.palette)
             self.loop.screen.clear() # redraw the screen
@@ -993,6 +1030,7 @@ class MainGUI(object):
 
         elif k == self.config['undo']:
             self.cur_tab.undo.undo()
+            self.update_line_numbers()
 
         elif k == 'ctrl x':
             # get outta here!

@@ -1,5 +1,5 @@
-Keybindings can be customized in the config file. To open said file press Ctrl+E. To update the
-changes save the config file and press Ctrl+T. The changes will then be in effect.
+Keybindings can be customized in the config file. To open said file press F5. To update the
+changes save the config file and press F6. The changes will then be in effect.
 
 Colors can also be edited in the config file and update without having to restart the editor.
 

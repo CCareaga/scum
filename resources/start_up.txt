@@ -29,13 +29,15 @@
 
 DEFAULT KEY BINDINGS:
 
-Ctrl+o to open a file(s).
-Ctrl+s to save current file.
-Ctrl+f to find occurences of a string
-Crtl+d to delete current line
-Ctrl+q to undo last action
-Ctrl+w to close the current tab.
-Alt+Tab to move to the next tab.
-Ctrl+e to open config file.
-Ctrl+t to update configuration.
-Ctrl+g to open/close the terminal.
+ctrl+o to open a file(s)
+ctrl+s to save current file
+ctrl+f to find occurences of a string
+crtl+d to delete current line
+ctrl+q to undo last action
+ctrl+w to close the current tab
+ctrl+page up to move to the next tab
+ctrl+page down to move to the previous tab
+F1 to toggle the GUI layout
+F5 to open config file
+F6 to update configuration
+ctrl+g to open/close the terminal
