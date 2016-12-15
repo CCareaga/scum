@@ -216,6 +216,7 @@ class UndoStack(object):
             elif item[0][-1] == '\n': # if ctrl d is pressed (delete line)
                 text = TextLine(item[0][:-1], self.display)
                 self.display.listbox.lines.insert(item[1][0], text)
+                self.display.line_nums.add()
             else: # this is just a normal backspace
                 self.display.listbox.focus.insert_text(item[0])
 
@@ -344,7 +345,7 @@ class FindField(urwid.Edit):
 
 class TextLine(urwid.Edit):
     def __init__(self, text, display, tabsize=4, **kwargs):
-        super().__init__(edit_text=text.expandtabs(4), **kwargs)
+        super().__init__(edit_text=text.expandtabs(4), wrap='clip', **kwargs)
         self.display = display
         self.tab = tabsize
         self.tokens = []
@@ -410,10 +411,15 @@ class LineNumbers(urwid.ListBox):
         super().__init__(self.numbers) # instantiate the parent class with the list
         self._selectable = False # can't be selectable!
         self.width = 1 # this tells how wide to make the line num column
+        # since the line numbers aren't selectable we simulate them being selected
+        # by changing their color. this field is used to save the last number that
+        # was highlighted in order to unhighlight it
+        self.previous  = 1
 
     # each time the user switches tabs the line numbers need to be cleared and
     # repopulated. For some reason this is the way this has to be done...
     def clear(self):
+        self.previous = 1
         for _ in range(0, len(self.numbers)):
             self.sub()
 
@@ -421,6 +427,8 @@ class LineNumbers(urwid.ListBox):
     # but it really only needs a length.. it calls clear then
     # it calls  add a bunch to create the new line num
     def populate(self, lines):
+        if not self.display.show_lnums:
+            return
         self.clear()
         self.width = 1
         for i in range(0, len(lines)):
@@ -436,7 +444,10 @@ class LineNumbers(urwid.ListBox):
             self.display.top.contents['body'] = (new_col, None)
 
     # this method simply deletes a line from the end of the line numbers
+    # note: we have to check that we didnt delete the last line or we get an index out of bounds!
     def sub(self):
+        if self.display.listbox.focus_position == len(self.numbers)-1:
+            self.previous = len(self.numbers)-2
         self.numbers.pop(-1)
 
 class TextList(urwid.ListBox):
@@ -584,8 +595,8 @@ class TextList(urwid.ListBox):
         lead = self.get_leading()
         self.split_focus(self.focus_position)
         #text = self.focus.edit_text.strip()
-        self.display.loop.process_input(['down'])
         self.display.line_nums.add()
+        self.display.loop.process_input(['down'])
         #if text != "":
         #   self.focus.set_edit_pos(lead)
         #   self.focus.set_edit_text(' ' * lead  + self.focus.edit_text)
@@ -779,7 +790,7 @@ class MainGUI(object):
 
         self.finding = False
         self.show_term = False
-        self.show_lnums = False
+        self.show_lnums = True
 
         self.state = ''
         self.rows = 0
@@ -808,8 +819,7 @@ class MainGUI(object):
         urwid.AttrMap(self.listbox, 'body')
 
         self.line_nums = LineNumbers(self)
-        lns = urwid.AttrMap(self.line_nums, 'body')
-        self.body_col = urwid.Columns([(3, lns), self.listbox], focus_column=1)
+        self.body_col = urwid.Columns([(3, self.line_nums), self.listbox], focus_column=1)
 
         self.foot_col = urwid.Columns(self.tabs)
         self.foot = urwid.AttrMap(self.foot_col, 'footer')
@@ -877,7 +887,17 @@ class MainGUI(object):
         self.ofbbar.set_text(selected)
 
     def update_line_numbers(self, cfrom=None):
-        self.line_nums.set_focus(self.listbox.focus_position, coming_from=cfrom)
+        if self.show_lnums:
+            focus_pos = self.listbox.focus_position
+            lnums = self.line_nums
+            lnums.set_focus(focus_pos, coming_from=cfrom)
+            foc = lnums.numbers[focus_pos]
+
+            prev = lnums.numbers[lnums.previous]
+            lnums.numbers[lnums.previous] = urwid.Text(prev.text, align='right')
+
+            lnums.numbers[focus_pos] = urwid.AttrWrap(foc, 'key')
+            lnums.previous = focus_pos
 
     def switch_states(self, state):
         # this method is run to switch states, it reassigns what content is in the Frame
@@ -902,12 +922,12 @@ class MainGUI(object):
     def toggle_line_numbers(self):
         self.show_lnums = not self.show_lnums
         if self.show_lnums:
-            lns = urwid.AttrWrap(self.line_nums, 'body')
-            self.body_col = urwid.Columns([(lns, 3), self.listbox])
-            self.top.contents['body'] = (self.body_col, None)
+            self.line_nums.populate(self.listbox.lines)
+            lns = urwid.AttrMap(self.line_nums, 'body')
+            self.body_col = urwid.Columns([(self.line_nums.width+2, lns), self.listbox], focus_column=1)
         else:
             self.body_col.contents.pop(0)
-            print('\n')
+        self.top.contents['body'] = (self.body_col, None)
 
     def toggle_term(self):
         self.show_term = not self.show_term
@@ -927,7 +947,7 @@ class MainGUI(object):
         content['header'], content['footer'] = content['footer'], content['header']
 
     def open_tabs(self):
-        # this method reads the saved tabs from the data file and automatically opens the files on start up
+        # this method reads the saved tabs from the data file and opens the files on start up
         with open('resources/tabs.dat', 'r') as f:
             lines = [line.strip('\n') for line in f.readlines()]
 
@@ -946,10 +966,6 @@ class MainGUI(object):
         with open('resources/tabs.dat', 'w') as f:
             for tab in self.file_names:
                 f.write(tab + '\n')
-
-    def mouse_event(self, size, event, button, col, row, focus):
-        if event == 'mouse press':
-            self.listbox.focus.insert_text('mouse')
 
     def keypress(self, k):
         # this method handles any keypresses that are unhandled by other widgets
@@ -990,6 +1006,9 @@ class MainGUI(object):
 
         elif k == self.config['delline']:
             self.cur_tab.undo.log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
+            if self.listbox.focus_position == 0 and len(self.listbox.lines) == 1:
+                self.listbox.focus.set_edit_text('')
+                return
             self.line_nums.sub()
             self.listbox.del_line()
 
