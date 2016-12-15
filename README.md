@@ -43,7 +43,6 @@ and was a wonderful learning experience. Enjoy! (at your own risk)
 | Ctrl+page up  | Move to the next tab  |
 | Ctrl+page down| Move to the prev tab  |
 | F5            | Edit the config file  |
-| F6            | Run config file       |
 | F1            | Change GUI layout     |
 | Ctrl+F        | Find                  |
 | Ctrl+Q        | Undo last action      |

@@ -15,24 +15,25 @@
 ##################################################################
 
 # Key-bindings
-open:ctrl o
-save:ctrl s
-find:ctrl f
-undo:ctrl q
-delline:ctrl d
-prevtab:meta page up
-nexttab:meta page down
-closetab:ctrl w
-terminal:ctrl g
-linenum:ctrl n
-layout:f1
-exit:ctrl x
+open:       ctrl o
+save:       ctrl s
+find:       ctrl f
+undo:       ctrl q
+delline:    ctrl d
+prevtab:    meta page up
+nexttab:    meta page down
+closetab:   ctrl w
+terminal:   ctrl g
+linenum:    ctrl n
+layout:     f1
+config:     f5
+exit:       ctrl x
 
 # syntax style
-style:monokai
+style:      emacs
 
 # gui colors
-# format:widget,foreground,background,extra
+# format -> widget:foreground,background,extra
 
 header:white,dark gray,bold
 footer:white,dark gray,bold

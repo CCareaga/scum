@@ -106,6 +106,7 @@ CONFIG = {
         'terminal':'ctrl g',
         'linenum':'ctrl n',
         'layout':'f1',
+        'config':'f5',
         'exit':'ctrl x'
     }
 
@@ -116,26 +117,28 @@ palette_items = ['header', 'flagged focus', 'key', 'footer', 'focus', 'selected'
 text_options = ['bold', 'underline', 'standout']
 
 def read_config():
+    counter = 0
     new_config = CONFIG # make a copy of the default config
     with open('resources/config.txt', 'r') as f:
-        lines = [x.strip('\n') for x in f.readlines() if x.strip()] # strip any unempty lines
+        lines = [x.strip('\n') for x in f.readlines()] # strip any unempty lines
 
     for line in lines:
-        if line.lstrip()[0] != '#': # skip lines with '#' at beginning
+        counter += 1
+        if line.strip() and line.lstrip()[0] != '#': # skip lines with '#' at beginning
             split = line.split(':') # break the line into two parts item and attributes
-            item = split[0]
+            item = split[0].strip()
             if item in palette_items: # if this line is a palette line
-                attribs = split[1].split(",")
+                attribs = split[1].strip().split(",")
                 try: # try creating an urwid attr spec
-                    a = urwid.AttrSpec(attribs[0], attribs[1], colors=256)
+                    a = urwid.AttrSpec(attribs[0].strip(), attribs[1].strip(), colors=256)
                     if attribs[2] not in text_options:
                         attribs[2] = ''
                     new_config[item] = [item]+[a.foreground, a.background, attribs[2]] # add this to the new config
-                except urwid.display_common.AttrSpecError:
-                    print("attribute not supported")
+                except:
+                    print("error on line" + str(counter))
             else: # this line isn't a palette lime
                 if item in new_config: # if this item exists in config dict
-                    new_config[item] = split[1] # redefine it in the dict
+                    new_config[item] = split[1].strip() # redefine it in the dict
 
     return new_config
 
@@ -673,6 +676,12 @@ class TextList(urwid.ListBox):
             for line in self.lines:
                 f.write(line.edit_text.rstrip()+'\n')
 
+        if self.short_name == 'config.txt':
+            self.display.configure()
+            self.display.register_palette()
+            self.display.loop.screen.clear()
+            self.display.update_top_bar()
+
     def keypress(self, size, key):
         # this function implements all the keypress behaviour of the text editor window
         # some of the keypress strings are grabbed from the config becuase they are customizable
@@ -803,7 +812,10 @@ class MainGUI(object):
         self.configure()
 
         self.stext = ('header', ['SCUM   ',
-                                    ('key', 'ESC'), ' Help ', ''])
+                                    ('key', 'ESC'), ' Help ',
+                                    ('key', 'ctrl s'), ' Save ',
+                                    ('key', 'ctrl o'), ' Open ',
+                                    ('key', 'ctrl x'), ' Exit'  ])
 
         self.openfile_stext = ('header', ['Open File: Arrows to navigate ',
                                     ('key', 'Space'), ' Select ',
@@ -840,6 +852,8 @@ class MainGUI(object):
         self.ofbbar = urwid.AttrWrap(self.openfile_bottom, 'footer')
 
         self.top = urwid.Frame(self.body_col, header=self.status, footer=self.foot_col)
+        self.update_top_bar()
+
         self.state = 'editor'
 
         self.term = ToggleTerm(self)
@@ -875,6 +889,18 @@ class MainGUI(object):
 
         for item in palette_items:
             self.palette.append(tuple(self.config[item]))
+
+    def update_top_bar(self):
+        self.stext = ('header', ['SCUM   ',
+                        ('key', 'ESC'), ' Help ',
+                        ('key', self.config['save']), ' Save ',
+                        ('key', self.config['open']), ' Open ',
+                        ('key', self.config['exit']), ' Exit'  ])
+
+        self.tbar = urwid.Text(self.stext)
+        self.status = urwid.AttrMap(self.tbar, 'header')
+
+        self.top.contents['header'] = (self.status, None)
 
     def update_status(self):
         # this method is runs to update the top bar depending on the current state
@@ -995,14 +1021,10 @@ class MainGUI(object):
             self.cur_tab.undo.log('backspace', [self.listbox.focus_position, self.listbox.focus.edit_pos], 1)
 
         # this keypress opens up the configuration file so it can be edited
-        elif k == 'f5':
+        elif k == self.config['config']:
             self.listbox.populate('resources/config.txt')
 
         # this keypress saves the changes of the config file and updates everything
-        elif k == 'f6':
-            self.configure()
-            self.loop.screen.register_palette(self.palette)
-            self.loop.screen.clear() # redraw the screen
 
         elif k == self.config['delline']:
             self.cur_tab.undo.log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
