@@ -8,3 +8,7 @@ modules/__init__.py
 modules/browse.py
 modules/popup.py
 modules/term.py
+resources/config.txt
+resources/help.txt
+resources/start_up.txt
+resources/tabs.dat
