@@ -1,4 +1,4 @@
-# SCUM
+SCUM
 ------
 
 Scum is a terminal-based, multi-tab text editor written in Python.
@@ -6,7 +6,7 @@ Scum is a terminal-based, multi-tab text editor written in Python.
 .. figure:: https://github.com/CCareaga/scum/blob/master/docs/scum.gif?raw=true
    :alt: Scum in urxvt!
 
-### About
+About
 ---------
 
 First of all, Scum is really just a novelty editor I wrote mostly for
@@ -17,7 +17,7 @@ both quick editing and full on development. Overall it was extremely fun
 to write and was a wonderful learning experience. Enjoy! (at your own
 risk)
 
-### Features
+Features
 ------------
 
 -  Syntax-highlighting
@@ -29,20 +29,20 @@ risk)
 -  Tab saving
 -  Togglable line numbers and terminal
 
-### Dependencies
+Dependencies
 ----------------
 
 -  Python 3.x
 -  Urwid
 -  Pygments
 
-### To-Do
+To-Do
 ---------
 
 -  Find and replace.
 -  Creating a new file.
 
-### Key Bindings
+Key Bindings
 ----------------
 
 +------------------+------------------------+

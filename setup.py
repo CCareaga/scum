@@ -11,7 +11,7 @@ import resources
 if sys.version_info[0] < 3:
     sys.exit("Scum requires Python 3.")
 
-VERSION = '0.1'
+VERSION = 'v0.2'
 
 setup_kwargs = {
     "version": VERSION,
@@ -27,8 +27,8 @@ setup_kwargs = {
         "Topic :: Utilities",
         "Topic :: Text Editors",
         ],
-    "data_files": [("", ['README.md']),
-                   ("resources", ['config.txt', 'help.txt', 'start_up.txt', 'tabs.dat'])]
+    "data_files": [("", ['README.rst']),
+                   ("resources", ['resources/config.txt', 'resouces/help.txt', 'resources/start_up.txt', 'resources/tabs.dat'])]
     }
 
 
@@ -37,7 +37,7 @@ if __name__ == '__main__':
         name='scum',
         py_modules=['scum'],
         scripts=['scum'],
-        packages = ['modules', 'resources'],
+        packages = ['modules'],
         include_package_data=True,
         long_description=open('README.rst').read(),
         **setup_kwargs
