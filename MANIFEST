@@ -2,10 +2,9 @@
 README.md
 scum
 scum.py
+setup.cfg
 setup.py
 modules/__init__.py
 modules/browse.py
-resources/config.txt
-resources/help.txt
-resources/start_up.txt
-resources/tabs.dat
+modules/popup.py
+modules/term.py
