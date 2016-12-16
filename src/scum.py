@@ -25,8 +25,6 @@ HELP_PATH = os.path.abspath(resource_filename('resources', 'help.txt'))
 TABS_PATH = os.path.abspath(resource_filename('resources', 'tabs.dat'))
 START_PATH = os.path.abspath(resource_filename('resources', 'start.txt'))
 
-print(os.path.abspath(resource_filename('resources', 'config.txt')))
-
 CONFIG = {
     'short_to_rgb': {  # color look-up table for 8-bit to RGB hex
         # Primary 3-bit (8 colors). Unique representation!
@@ -130,7 +128,7 @@ text_options = ['bold', 'underline', 'standout']
 def read_config():
     counter = 0
     new_config = CONFIG # make a copy of the default config
-    with open('resources/config.txt', 'r') as f:
+    with open(CONFIG_PATH, 'r') as f:
         lines = [x.strip('\n') for x in f.readlines()] # strip any unempty lines
 
     for line in lines:

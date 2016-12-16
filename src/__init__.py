@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from scum import MainGUI
 import os
 import signal
