@@ -33,6 +33,7 @@ if __name__ == '__main__':
         name='scum',
         py_modules=['scum.scum'],
         scripts=['main'],
+        data_files=[('', ['README.rst'])],
         packages = ['scum.modules', 'scum', 'scum.resources'],
         package_data = {'scum.resources': ['config.txt', 'start_up.txt', 'tabs.dat', 'help.txt']},
         long_description=open('README.rst').read(),
