@@ -15,8 +15,17 @@ from pygments.token import Token
 from pygments.filter import Filter
 from pygments.styles import get_style_by_name
 
+from pkg_resources import resource_filename
+
 RE_WORD = re.compile(r'\w+')
 RE_NOT_WORD = re.compile(r'\W+')
+
+CONFIG_PATH = os.path.abspath(resource_filename('resources', 'config.txt'))
+HELP_PATH = os.path.abspath(resource_filename('resources', 'help.txt'))
+TABS_PATH = os.path.abspath(resource_filename('resources', 'tabs.dat'))
+START_PATH = os.path.abspath(resource_filename('resources', 'start.txt'))
+
+print(os.path.abspath(resource_filename('resources', 'config.txt')))
 
 CONFIG = {
     'short_to_rgb': {  # color look-up table for 8-bit to RGB hex
@@ -867,7 +876,7 @@ class MainGUI(object):
         self.open_tabs()
 
         if len(self.tabs) == 0:
-            self.listbox.populate("resources/start_up.txt")
+            self.listbox.populate(START_PATH)
 
     def display(self):
         # this method starts the main loop and such
@@ -882,7 +891,7 @@ class MainGUI(object):
         self.term.main_loop = self.loop
         self.loop.run()
 
-        with open('resources/tabs.dat', 'a') as f:
+        with open(TABS_PATH, 'a') as f:
             f.write(str(self.layout))
 
     def configure(self):
@@ -978,7 +987,7 @@ class MainGUI(object):
 
     def open_tabs(self):
         # this method reads the saved tabs from the data file and opens the files on start up
-        with open('resources/tabs.dat', 'r') as f:
+        with open(TABS_PATH, 'r') as f:
             lines = [line.strip('\n') for line in f.readlines()]
 
         for line in lines:
@@ -993,7 +1002,7 @@ class MainGUI(object):
     def save_tabs(self):
         # this method is run whenever a tab is opened or closed, it writes
         # the current open file names to a data file to be read on start up
-        with open('resources/tabs.dat', 'w') as f:
+        with open(TABS_PATH, 'w') as f:
             for tab in self.file_names:
                 f.write(tab + '\n')
 
@@ -1026,7 +1035,7 @@ class MainGUI(object):
 
         # this keypress opens up the configuration file so it can be edited
         elif k == self.config['config']:
-            self.listbox.populate('resources/config.txt')
+            self.listbox.populate(CONFIG_PATH)
 
         # this keypress saves the changes of the config file and updates everything
 
@@ -1084,7 +1093,7 @@ class MainGUI(object):
 
         # user needs help... so give them this help file I guess.
         elif k == 'esc':
-            self.listbox.populate('resources/help.txt')
+            self.listbox.populate(HELP_PATH)
 
     def register_palette(self):
         """Converts pygmets style to urwid palatte"""
@@ -1115,10 +1124,3 @@ class MainGUI(object):
             palette.append(row)
         self.loop.screen.register_palette(palette)
 
-os.system('stty -ixon') # disable XOFF to accept Ctrl-S
-# instantiate it!
-main = MainGUI()
-signal.signal(signal.SIGTSTP, signal.SIG_IGN)
-signal.signal(signal.SIGINT, signal.SIG_IGN)
-main.display()
-os.system('stty ixon') # re-enable XOFF!

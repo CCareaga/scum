@@ -5,12 +5,10 @@ have_setuptools = False
 
 from pkgutil import walk_packages
 
-import modules
-
 if sys.version_info[0] < 3:
     sys.exit("Scum requires Python 3.")
 
-VERSION = 'v0.2'
+VERSION = 'v1.1.1'
 
 setup_kwargs = {
     "version": VERSION,
@@ -26,19 +24,17 @@ setup_kwargs = {
         "Programming Language :: Python :: 3",
         "Topic :: Utilities",
         "Topic :: Text Editors",
-        ],
-    "data_files": [("", ['README.rst']),
-                   ("resources", ['resources/config.txt', 'resources/help.txt', 'resources/start_up.txt', 'resources/tabs.dat'])]
+        ]
     }
 
 
 if __name__ == '__main__':
     setup(
         name='scum',
-        py_modules=['scum'],
-        scripts=['scum'],
-        packages = ['modules'],
-        include_package_data=True,
+        py_modules=['scum.scum'],
+        scripts=['main'],
+        packages = ['scum.modules', 'scum', 'scum.resources'],
+        package_data = {'scum.resources': ['config.txt', 'start_up.txt', 'tabs.dat', 'help.txt']},
         long_description=open('README.rst').read(),
         **setup_kwargs
         )
