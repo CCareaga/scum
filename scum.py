@@ -466,7 +466,7 @@ class TextList(urwid.ListBox):
     def populate(self, fname):
         # this function populates the TextList and creates a new tabs
         # The same Textlist is used for each tab but when tabs are switched the
-        # contents of the tab are grabbed from a dictionary in the main class
+        # contents of the tab are grabbed from the files TabInfo instance
         if fname not in self.display.file_names:
             # grab the lines from the file and strip the newline char
             # then iterate through and create a new TextLine object for each line
@@ -507,7 +507,8 @@ class TextList(urwid.ListBox):
             self.display.tabs.append(attrib)
             # switch to the new tab
             self.switch_tabs(fname)
-
+        else:
+            self.display.line_nums.populate(self.lines)
         self.redraw_tabs()
 
     def redraw_tabs(self):
@@ -539,6 +540,7 @@ class TextList(urwid.ListBox):
                 self.display.top.contents['header'] = (foot, None)
             else:
                 self.display.top.contents['footer'] = (foot, None)
+
             self.switch_tabs(new_name)
             del self.display.tab_info[fname]
 
@@ -560,7 +562,6 @@ class TextList(urwid.ListBox):
             if self.fname != ' ':
                 cur_tab_info = self.display.tab_info[self.fname]
                 cur_tab_info.lines[:] = self.lines
-            #cur_tab_info = self.display.tab_info[fname]
                 try:
                     line = self.focus_position
                     col = self.focus.edit_pos
@@ -589,6 +590,7 @@ class TextList(urwid.ListBox):
             self.set_focus(new_tab_info.cursor[0])
             self.focus.set_edit_pos(new_tab_info.cursor[1])
             self.display.update_line_numbers()
+            self.display.cur_tab = new_tab_info
         else:
             # not really needed since no mouse support :/
             self.display.top.set_focus('body')
@@ -662,7 +664,7 @@ class TextList(urwid.ListBox):
         new_edit = TextLine(focus.text[position:], self.display)
         focus.set_edit_text(focus.text[:position])
         self.focus.set_edit_pos(0)
-        # insert the new line at the correct index
+        # insert the newline at the correct index
         self.lines.insert(index+1, new_edit)
 
     def del_line(self):
@@ -1027,10 +1029,11 @@ class MainGUI(object):
         # this keypress saves the changes of the config file and updates everything
 
         elif k == self.config['delline']:
-            self.cur_tab.undo.log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
             if self.listbox.focus_position == 0 and len(self.listbox.lines) == 1:
                 self.listbox.focus.set_edit_text('')
                 return
+
+            self.cur_tab.undo.log(self.listbox.focus.edit_text+'\n', [self.listbox.focus_position, 0], 1)
             self.line_nums.sub()
             self.listbox.del_line()
 
