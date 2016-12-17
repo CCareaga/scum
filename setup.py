@@ -8,7 +8,7 @@ from pkgutil import walk_packages
 if sys.version_info[0] < 3:
     sys.exit("Scum requires Python 3.")
 
-VERSION = 'v1.1.5'
+VERSION = 'v1.1.6'
 
 setup_kwargs = {
     "version": VERSION,
