@@ -1,14 +1,11 @@
 import sys
 
-from distutils.core import setup
-have_setuptools = False
-
-from pkgutil import walk_packages
+from setuptools import setup
 
 if sys.version_info[0] < 3:
     sys.exit("Scum requires Python 3.")
 
-VERSION = 'v1.1.8'
+VERSION = 'v1.1.9'
 
 setup_kwargs = {
     "version": VERSION,
@@ -17,7 +14,7 @@ setup_kwargs = {
     "author_email": 'christian.careaga7@gmail.com',
     "url": 'https://github.com/CCareaga/scum',
     "download_url": "https://github.com/CCareaga/scum/zipball/" + VERSION,
-    "requires":['urwid', 'pygments'],
+    "install_requires":['urwid', 'Pygments'],
     "classifiers": [
         "License :: OSI Approved :: MIT License",
         "Intended Audience :: Developers",
