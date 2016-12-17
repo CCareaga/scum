@@ -12,7 +12,7 @@ VERSION = 'v1.1.8'
 
 setup_kwargs = {
     "version": VERSION,
-    "description": 'Scum text editor',
+    "description": 'A scummy editor for your terminal!',
     "author": 'Christian Careaga',
     "author_email": 'christian.careaga7@gmail.com',
     "url": 'https://github.com/CCareaga/scum',

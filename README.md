@@ -10,6 +10,12 @@ First of all, Scum is really just a novelty editor I wrote mostly for learning a
 seasoned text editors such as Emacs or Vim (hence the name "Scum"). With that being said, it is still a fully-functional
 terminal based editor! It can be used for both quick editing and full on development. Overall it was extremely fun to write
 and was a wonderful learning experience. Enjoy! (at your own risk)
+### Installation
+To install scum simply use pip:
+
+```
+pip install scum
+```
 
 ### Features
 ------------
