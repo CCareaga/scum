@@ -8,7 +8,7 @@ from pkgutil import walk_packages
 if sys.version_info[0] < 3:
     sys.exit("Scum requires Python 3.")
 
-VERSION = 'v1.1.4'
+VERSION = 'v1.1.5'
 
 setup_kwargs = {
     "version": VERSION,
@@ -31,10 +31,10 @@ setup_kwargs = {
 if __name__ == '__main__':
     setup(
         name='scum',
-        py_modules=['src.scum'],
-        scripts=['scum'],
+        py_modules=['src.main'],
+        scripts=['scum.py'],
         data_files=[('', ['README.rst'])],
-        packages = ['src.modules', 'scum', 'src.resources'],
+        packages = ['src.modules', 'src', 'src.resources'],
         package_data = {'src.resources': ['config.txt', 'start_up.txt', 'tabs.dat', 'help.txt']},
         long_description=open('README.rst').read(),
         **setup_kwargs
