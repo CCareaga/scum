@@ -23,7 +23,7 @@ RE_NOT_WORD = re.compile(r'\W+')
 CONFIG_PATH = os.path.abspath(resource_filename('src.resources', 'config.txt'))
 HELP_PATH = os.path.abspath(resource_filename('src.resources', 'help.txt'))
 TABS_PATH = os.path.abspath(resource_filename('src.resources', 'tabs.dat'))
-START_PATH = os.path.abspath(resource_filename('src.resources', 'start.txt'))
+START_PATH = os.path.abspath(resource_filename('src.resources', 'start_up.txt'))
 
 CONFIG = {
     'short_to_rgb': {  # color look-up table for 8-bit to RGB hex
@@ -887,10 +887,15 @@ class MainGUI(object):
         self.register_palette()
 
         self.term.main_loop = self.loop
-        self.loop.run()
+        try:
+            self.loop.run()
+        except:
+            return 'failure'
 
         with open(TABS_PATH, 'a') as f:
             f.write(str(self.layout))
+
+        return 'exit'
 
     def configure(self):
         # this method is run to re-parse the config and set the palette
@@ -987,6 +992,11 @@ class MainGUI(object):
         # this method reads the saved tabs from the data file and opens the files on start up
         with open(TABS_PATH, 'r') as f:
             lines = [line.strip('\n') for line in f.readlines()]
+        if len(lines) == 0:
+            with open(TABS_PATH, 'w') as f:
+                f.write(START_PATH + '\n')
+                f.write('False')
+            self.listbox.populate(START_PATH)
 
         for line in lines:
             if line != lines[-1]:

@@ -31,8 +31,7 @@ setup_kwargs = {
 if __name__ == '__main__':
     setup(
         name='scum',
-        py_modules=['src.main'],
-        scripts=['scum'],
+        py_modules=['src.main', 'scum'],
         data_files=[('', ['README.rst'])],
         packages = ['src.modules', 'src', 'src.resources'],
         package_data = {'src.resources': ['config.txt', 'start_up.txt', 'tabs.dat', 'help.txt']},
