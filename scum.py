@@ -13,11 +13,11 @@ def main():
     status = main.display()
     os.system('stty ixon') # re-enable XOFF!
     if status == 'failure':
-    	with open(TABS_PATH, 'w') as f:
-    		f.write(START_PATH + '\n')
-    		f.write('False')
+        with open(TABS_PATH, 'w') as f:
+            f.write(START_PATH + '\n')
+            f.write('False')
 
-
-main()
+if __name__=="__main__":
+    main()
 
 
