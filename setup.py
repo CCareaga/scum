@@ -5,7 +5,7 @@ from setuptools import setup
 if sys.version_info[0] < 3:
     sys.exit("Scum requires Python 3.")
 
-VERSION = 'v0.1'
+VERSION = 'v0.2.1'
 
 setup_kwargs = {
     "version": VERSION,
