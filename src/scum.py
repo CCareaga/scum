@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from src.main import MainGUI, START_PATH, TABS_PATH
+from main import MainGUI, START_PATH, TABS_PATH
 import os
 import signal
 
@@ -17,7 +17,7 @@ def main():
             f.write(START_PATH + '\n')
             f.write('False')
 
-if __name__=="__main__":
-    main()
+#if __name__=="__main__":
+#    main()
 
 

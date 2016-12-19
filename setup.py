@@ -5,7 +5,7 @@ from setuptools import setup
 if sys.version_info[0] < 3:
     sys.exit("Scum requires Python 3.")
 
-VERSION = 'v0.2.1'
+VERSION = 'v0.2.2'
 
 setup_kwargs = {
     "version": VERSION,
@@ -29,7 +29,11 @@ if __name__ == '__main__':
     setup(
         name='scum',
         py_modules=['src.main', 'scum'],
-        scripts=['scum'],
+        entry_points={
+            'console_scripts': [
+                'scum = src.scum:main'
+            ]
+        },
         data_files=[('', ['README.rst'])],
         packages = ['src.modules', 'src', 'src.resources'],
         package_data = {'src.resources': ['config.txt', 'start_up.txt', 'tabs.dat', 'help.txt']},
