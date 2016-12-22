@@ -17,7 +17,7 @@ def main():
             f.write(START_PATH + '\n')
             f.write('False')
 
-if __name__=="__main__":
-    main()
+#if __name__=="__main__":
+#    main()
 
 
