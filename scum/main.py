@@ -5,7 +5,7 @@ import os
 import re
 import signal
 import string
-from src.modules import *
+from scum.modules import *
 
 import pygments.util
 from pygments.lexers import guess_lexer_for_filename, get_lexer_for_filename
@@ -20,10 +20,10 @@ from pkg_resources import resource_filename
 RE_WORD = re.compile(r'\w+')
 RE_NOT_WORD = re.compile(r'\W+')
 
-CONFIG_PATH = os.path.abspath(resource_filename('src.resources', 'config.txt'))
-HELP_PATH = os.path.abspath(resource_filename('src.resources', 'help.txt'))
-TABS_PATH = os.path.abspath(resource_filename('src.resources', 'tabs.dat'))
-START_PATH = os.path.abspath(resource_filename('src.resources', 'start_up.txt'))
+CONFIG_PATH = os.path.abspath(resource_filename('scum.resources', 'config.txt'))
+HELP_PATH = os.path.abspath(resource_filename('scum.resources', 'help.txt'))
+TABS_PATH = os.path.abspath(resource_filename('scum.resources', 'tabs.dat'))
+START_PATH = os.path.abspath(resource_filename('scum.resources', 'start_up.txt'))
 
 CONFIG = {
     'short_to_rgb': {  # color look-up table for 8-bit to RGB hex

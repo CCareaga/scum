@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from src.main import MainGUI, START_PATH, TABS_PATH
+from scum.main import MainGUI, START_PATH, TABS_PATH
 import os
 import signal
 
@@ -18,6 +18,6 @@ def main():
             f.write('False')
 
 #if __name__=="__main__":
-#    main()
+#       main()
 
 
