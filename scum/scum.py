@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from main import MainGUI, START_PATH, TABS_PATH
+from scum.main import MainGUI, START_PATH, TABS_PATH
 import os
 import signal
 

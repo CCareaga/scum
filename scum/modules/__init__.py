@@ -1,3 +1,3 @@
-from modules.browse import DirectoryNode
-from modules.term import ToggleTerm
-from modules.popup import *
+from scum.modules.browse import DirectoryNode
+from scum.modules.term import ToggleTerm
+from scum.modules.popup import *
