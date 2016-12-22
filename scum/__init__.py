@@ -1,1 +1,1 @@
-from scum.main import MainGUI
+from main import MainGUI
