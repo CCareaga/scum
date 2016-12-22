@@ -28,15 +28,14 @@ setup_kwargs = {
 if __name__ == '__main__':
     setup(
         name='scum',
-        py_modules=['src.main', 'scum'],
         entry_points={
             'console_scripts': [
-                'scum = src.scum:main'
+                'scum = scum.scum:main'
             ]
         },
         data_files=[('', ['README.rst'])],
-        packages = ['src.modules', 'src', 'src.resources'],
-        package_data = {'src.resources': ['config.txt', 'start_up.txt', 'tabs.dat', 'help.txt']},
+        packages = ['scum.modules', 'scum', 'scum.resources'],
+        package_data = {'scum.resources': ['config.txt', 'start_up.txt', 'tabs.dat', 'help.txt']},
         long_description=open('README.rst').read(),
         **setup_kwargs
         )
