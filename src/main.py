@@ -264,6 +264,8 @@ class FindField(urwid.Edit):
         self.last = 0
         self.on_line = []
         self.history = []
+        self.searches = []
+        self.search_pos = -1
 
     def goto(self, word, current):
         # this method is some crazy sh*t, I wrote it and I still am not quite sure how it works...
@@ -311,6 +313,7 @@ class FindField(urwid.Edit):
 
         if key == self.display.config['find']: # if ctrl+f is pressed again stop finding
             self.display.top.contents['footer'] = (self.display.foot_col, None)
+            self.searches.insert(0, self.edit_text)
             self.set_edit_text("")
             self.on_line = []
             if self.display.layout:
@@ -350,6 +353,18 @@ class FindField(urwid.Edit):
             self.set_edit_text(self.edit_text[:-1]) # get the string wihtout the last letter
             self.goto(self.edit_text, (0, 0))
             self.history = []
+
+        #if key == 'up':
+            #self.search_pos += 1
+            #if self.search_pos <= len(self.searches) -1:
+                #self.set_edit_text(self.searches[search_pos])
+
+        #if key == 'down':
+            #self.search_pos += 1
+            #if self.search_pos >= 0:
+                #self.set_edit_text(self.searches[search_pos])
+            #else:
+                #self.set_edit_text("")
 
         self.display.listbox.lines[self.line].set_edit_pos(self.index)
         self.display.listbox.set_focus(self.line)
@@ -739,6 +754,7 @@ class TextList(urwid.ListBox):
             if xpos == len(line.edit_text) and self.focus_position != len(self.lines)-1:
                 self.set_focus(self.focus_position+1)
                 line.set_edit_pos(0)
+                self.display.update_line_numbers(cfrom='above')
                 return
 
             re_word = RE_WORD
@@ -751,8 +767,10 @@ class TextList(urwid.ListBox):
             xpos = line.edit_pos
             if xpos == 0 and self.focus_position != 0:
                 self.set_focus(self.focus_position-1)
-                line.set_edit_pos(len(line.edit_text))
+                self.focus.set_edit_pos(len(self.focus.edit_text))
+                self.display.update_line_numbers(cfrom='below')
                 return
+
             re_word = RE_WORD
             starts = [m.start() for m in re_word.finditer(line.edit_text or "", 0, xpos)]
             word_pos = 0 if len(starts) == 0 else starts[-1]
@@ -965,11 +983,12 @@ class MainGUI(object):
         self.show_lnums = not self.show_lnums
         if self.show_lnums:
             self.line_nums.populate(self.listbox.lines)
-            lns = urwid.AttrMap(self.line_nums, 'body')
-            self.body_col = urwid.Columns([(self.line_nums.width+2, lns), self.listbox], focus_column=1)
-        else:
+            self.body_col = urwid.Columns([(self.line_nums.width+2, self.line_nums), self.listbox], focus_column=1)
+       else:
             self.body_col.contents.pop(0)
+
         self.top.contents['body'] = (self.body_col, None)
+        self.update_line_numbers()
 
     def toggle_term(self):
         self.show_term = not self.show_term
